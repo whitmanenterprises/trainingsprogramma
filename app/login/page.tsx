@@ -1,4 +1,5 @@
 'use client';
+// login page for knie training app
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
