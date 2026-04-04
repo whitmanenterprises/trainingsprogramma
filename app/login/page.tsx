@@ -98,9 +98,35 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            style={{ width: '100%', padding: 14, borderRadius: 12, background: loading ? 'rgba(34,197,94,.3)' : C.green, color: loading ? C.greenDark : '#fff', fontSize: 15, fontWeight: 600, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all .2s' }}
+            style={{ width: '100%', padding: 14, borderRadius: 12, background: loading ? 'rgba(34,197,94,.3)' : C.green, color: loading ? C.greenDark : '#fff', fontSize: 15, fontWeight: 600, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'all .2s', marginBottom: 10 }}
           >
             {loading ? 'Laden...' : 'Inloggen'}
+          </button>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={async () => {
+              setError('');
+              setLoading(true);
+              const { error: signUpError } = await supabaseClient.auth.signUp({ email, password });
+              if (signUpError) {
+                setError(signUpError.message);
+                setLoading(false);
+                return;
+              }
+              // After signup, try to sign in
+              const { error: signInError2 } = await supabaseClient.auth.signInWithPassword({ email, password });
+              if (signInError2) {
+                setError('Account aangemaakt! Check je e-mail voor verificatie, probeer dan opnieuw in te loggen.');
+                setLoading(false);
+                return;
+              }
+              router.push('/');
+            }}
+            style={{ width: '100%', padding: 14, borderRadius: 12, background: 'transparent', color: C.greenDark, fontSize: 14, fontWeight: 600, border: `1px solid ${C.greenBorder}`, cursor: loading ? 'not-allowed' : 'pointer', transition: 'all .2s' }}
+          >
+            {loading ? 'Laden...' : 'Account aanmaken'}
           </button>
         </form>
       </div>
