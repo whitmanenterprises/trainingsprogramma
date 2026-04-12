@@ -204,8 +204,9 @@ function PoseIllustration({ exercise }: { exercise: ExerciseType }) {
 
 export default function App() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // Auth removed - local only, exercise data is hardcoded
+  const authLoading = false;
+  const user = { id: 'local-user' } as User;
   const [exerciseList, setExerciseList] = useState<ExerciseType[]>(EXERCISES as ExerciseType[]);
   const [tab, setTab] = useState<'training' | 'history'>('training');
   const [sessionHistory, setSessionHistory] = useState<SessionType[]>([]);
@@ -217,43 +218,8 @@ export default function App() {
   const [expanded, setExpanded] = useState(false);
   const [screen, setScreen] = useState('workout');
 
-  useEffect(() => {
-    supabaseClient.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-      if (!session) router.push('/login');
-    });
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_, session) => {
-      setUser(session?.user ?? null);
-      if (!session) router.push('/login');
-    });
-    return () => subscription.unsubscribe();
-  }, [router]);
-
-  useEffect(() => {
-    if (!user) return;
-    supabaseClient
-      .from('exercises')
-      .select('*')
-      .eq('active', true)
-      .order('order_index', { ascending: true })
-      .then(({ data }) => {
-        if (data && data.length > 0) setExerciseList(data as ExerciseType[]);
-      });
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    supabaseClient
-      .from('workout_sessions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('completed_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        if (data) setSessionHistory(data as SessionType[]);
-      });
-  }, [user]);
+  // Session history not loaded - Supabase RLS blocks anon read
+  // Exercises use hardcoded data from EXERCISES array above
 
   const ex = exerciseList[step] || exerciseList[0];
   const allMuscles = [...new Set(exerciseList.flatMap(e => e.muscles))];
@@ -276,18 +242,7 @@ export default function App() {
           setStep(s => s + 1);
         } else {
           setScreen('done');
-          if (user) {
-            const sessionData = {
-              user_id: user.id,
-              completed_at: new Date().toISOString(),
-              exercises_completed: exerciseList.map(e => ({ id: e.id, dutch: e.dutch })),
-              total_exercises: exerciseList.length,
-            };
-            const { data } = await supabaseClient.from('workout_sessions').insert(sessionData).select().single();
-            if (data) {
-              setSessionHistory(prev => [data as SessionType, ...prev].slice(0, 20));
-            }
-          }
+          // Supabase insert skipped - RLS blocks anon write
         }
       }, 500);
     }, 400);
@@ -298,10 +253,7 @@ export default function App() {
     setGlowMuscles([]); setExpanded(false); setScreen('workout');
   };
 
-  const handleLogout = async () => {
-    await supabaseClient.auth.signOut();
-    router.push('/login');
-  };
+  // Logout removed - no auth required
 
   const C = { bg: "#fafaf9", card: "#fff", border: "#e7e5e4", text: "#1c1917", sub: "#78716c", light: "#a8a29e", green: "#22c55e", greenBg: "#f0fdf4", greenBorder: "#bbf7d0", greenDark: "#15803d" };
 
