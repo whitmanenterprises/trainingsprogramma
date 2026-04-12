@@ -301,7 +301,7 @@ export default function App() {
             <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: progress === 100 ? C.greenDark : C.text, lineHeight: 1 }}>{progress}%</div>
             <div style={{ fontSize: 9, color: C.light, fontFamily: "'JetBrains Mono',monospace", letterSpacing: .5 }}>KLAAR</div>
           </div>
-          <button className="btn" onClick={handleLogout} style={{ padding: "6px 10px", borderRadius: 8, background: C.card, border: `1px solid ${C.border}`, fontSize: 11, color: C.light, cursor: 'pointer' }}>Uit</button>
+          <button className="btn" onClick={reset} style={{ padding: "6px 10px", borderRadius: 8, background: C.card, border: `1px solid ${C.border}`, fontSize: 11, color: C.light, cursor: 'pointer' }}>Reset</button>
         </div>
       </div>
 
