@@ -1,282 +1,462 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { sessions } from '../data';
-import { DayRecord, Exercise } from '../types';
+import { DayRecord, Exercise, Session } from '../types';
 
-// ─── Storage helpers ───
 const STORAGE_KEY = 'trainingsprogramma-records';
 
 function loadRecords(): DayRecord[] {
   if (typeof window === 'undefined') return [];
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function saveRecord(record: DayRecord) {
   const records = loadRecords();
-  // Update existing or add new
-  const idx = records.findIndex(r => r.date === record.date && r.sessionId === record.sessionId);
+  const idx = records.findIndex((r) => r.date === record.date && r.sessionId === record.sessionId);
+
   if (idx >= 0) {
     records[idx] = record;
   } else {
     records.push(record);
   }
+
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
 function getCurrentWeekSession(): 'a' | 'b' | 'c' {
   const weekNum = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const cycle = weekNum % 3;
-  const today = new Date().getDay(); // 0=Sun, 6=Sat
+  const today = new Date().getDay();
   const sessionOrder: ('a' | 'b' | 'c')[][] = [
-    ['a', 'b', 'c'],  // Week 0
-    ['b', 'c', 'a'],  // Week 1
-    ['c', 'a', 'b'],  // Week 2
+    ['a', 'b', 'c'],
+    ['b', 'c', 'a'],
+    ['c', 'a', 'b'],
   ];
-  // Map day of week to session index
-  const dayOrder: Record<number, number> = { 1: 0, 2: 1, 3: 2, 4: 0, 5: 1, 6: 2, 0: 2 }; // Mon=0, Sat=2, Sun=2
+  const dayOrder: Record<number, number> = { 1: 0, 2: 1, 3: 2, 4: 0, 5: 1, 6: 2, 0: 2 };
   const idx = dayOrder[today] || 0;
   return sessionOrder[cycle][idx];
 }
 
-// ─── SVG Muscle Figures ───
-function MuscleFigure({ sessionId, activeIndex }: { sessionId: 'a' | 'b' | 'c'; activeIndex: number }) {
-  const green = sessionId === 'a' ? '#22c55e' : sessionId === 'b' ? '#3b82f6' : '#eab308';
-  const green30 = sessionId === 'a' ? 'rgba(34,197,94,0.3)' : sessionId === 'b' ? 'rgba(59,130,246,0.3)' : 'rgba(234,179,8,0.3)';
-  const green50 = sessionId === 'a' ? 'rgba(34,197,94,0.55)' : sessionId === 'b' ? 'rgba(59,130,246,0.55)' : 'rgba(234,179,8,0.55)';
+function parseDurationToSeconds(duration?: string) {
+  if (!duration) return 0;
+  const match = duration.match(/(\d+)\s*sec/i);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+function formatSeconds(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}`;
+}
+
+function getExerciseMeta(exercise: Exercise) {
+  return [exercise.sets ? `${exercise.sets} sets` : null, exercise.reps, exercise.duration, exercise.muscles]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function getNextOpenExercise(session: Session, completed: Set<number>) {
+  return session.exercises.findIndex((_, index) => !completed.has(index));
+}
+
+function MuscleFigure({ sessionId }: { sessionId: 'a' | 'b' | 'c' }) {
+  const color = sessionId === 'a' ? '#22c55e' : sessionId === 'b' ? '#3b82f6' : '#eab308';
+  const muted = '#dad6d0';
+  const isLegs = sessionId === 'a';
+  const isUpper = sessionId === 'b';
+  const isBalance = sessionId === 'c';
 
   return (
-    <svg viewBox="0 0 200 400" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
-      {/* Body base — front view silhouette */}
-      <g fill="#e8e8e8" stroke="#d0d0d0" strokeWidth="1.5">
-        {/* Head */}
-        <ellipse cx="100" cy="38" rx="22" ry="28" />
-        {/* Neck */}
-        <rect x="92" y="65" width="16" height="10" rx="4" />
-        {/* Torso */}
-        <path d="M70 78 Q60 85 55 100 L50 140 Q48 165 52 180 Q58 195 70 200 L130 200 Q142 195 148 180 Q152 165 150 140 L145 100 Q140 85 130 78 Z" />
-        {/* Left arm */}
-        <path d="M55 85 Q38 100 32 135 Q28 165 30 195 Q32 210 38 218 L50 212 Q46 195 44 170 Q42 140 53 100" />
-        {/* Right arm */}
-        <path d="M145 85 Q162 100 168 135 Q172 165 170 195 Q168 210 162 218 L150 212 Q154 195 156 170 Q158 140 147 100" />
-        {/* Left leg */}
-        <path d="M68 200 L62 260 Q58 300 60 350 Q62 375 70 390 L88 390 Q86 365 83 340 Q80 300 83 260 L88 200 Z" />
-        {/* Right leg */}
-        <path d="M132 200 L138 260 Q142 300 140 350 Q138 375 130 390 L112 390 Q114 365 117 340 Q120 300 117 260 L112 200 Z" />
-      </g>
-
-      {/* ─── SESSION A: Knee/Lower Body ─── */}
-      {sessionId === 'a' && (
-        <g>
-          {/* Completed muscles based on activeIndex */}
-          {/* Quads */}
-          {activeIndex >= 1 && (
-            <path d="M70 220 L65 260 Q63 295 65 340 L80 340 Q78 310 80 270 Q82 245 82 220 Z"
-                  fill={green50} stroke={green} strokeWidth="1.5" />
-          )}
-          {activeIndex >= 1 && (
-            <path d="M130 220 L135 260 Q137 295 135 340 L120 340 Q122 310 120 270 Q118 245 118 220 Z"
-                  fill={activeIndex >= 6 ? green50 : green30} stroke={activeIndex >= 6 ? green : green} strokeWidth="1.5" />
-          )}
-          {/* Glutes */}
-          {activeIndex >= 6 && (
-            <ellipse cx="100" cy="195" rx="35" ry="12" fill={green50} stroke={green} strokeWidth="1.5" />
-          )}
-          {/* Hip abductors */}
-          {activeIndex >= 3 && (
-            <g>
-              <ellipse cx="58" cy="210" rx="8" ry="12" fill={green30} stroke={green} strokeWidth="1.2" />
-              <ellipse cx="142" cy="210" rx="8" ry="12" fill={green30} stroke={green} strokeWidth="1.2" />
-            </g>
-          )}
-          {/* Calves */}
-          {activeIndex >= 5 && (
-            <g>
-              <path d="M62 345 Q58 370 65 388 L75 385 Q72 365 73 345 Z" fill={activeIndex >= 6 ? green50 : green30} stroke={green} strokeWidth="1" />
-              <path d="M138 345 Q142 370 135 388 L125 385 Q128 365 127 345 Z" fill={activeIndex >= 6 ? green50 : green30} stroke={green} strokeWidth="1" />
-            </g>
-          )}
-        </g>
-      )}
-
-      {/* ─── SESSION B: Posture/Upper Body ─── */}
-      {sessionId === 'b' && (
-        <g>
-          {/* Neck */}
-          {activeIndex >= 0 && (
-            <rect x="92" y="62" width="16" height="14" rx="6" fill={green30} stroke={green} strokeWidth="1.2" />
-          )}
-          {/* Upper back / between shoulder blades */}
-          {activeIndex >= 1 && (
-            <rect x="75" y="78" width="50" height="18" rx="6" fill={green50} stroke={green} strokeWidth="1.5" />
-          )}
-          {/* Chest */}
-          {activeIndex >= 5 && (
-            <ellipse cx="100" cy="95" rx="30" ry="12" fill={green30} stroke={green} strokeWidth="1.2" />
-          )}
-          {/* Shoulders */}
-          {activeIndex >= 0 && (
-            <g>
-              <ellipse cx="65" cy="82" rx="12" ry="8" fill={activeIndex >= 4 ? green50 : green30} stroke={green} strokeWidth="1.2" />
-              <ellipse cx="135" cy="82" rx="12" ry="8" fill={activeIndex >= 4 ? green50 : green30} stroke={green} strokeWidth="1.2" />
-            </g>
-          )}
-          {/* Thoracic spine */}
-          {activeIndex >= 2 && (
-            <line x1="100" y1="96" x2="100" y2="155" stroke={green} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-          )}
-          {/* Upper arms */}
-          {activeIndex >= 0 && (
-            <g>
-              <path d="M48 100 Q42 115 40 135 Q38 150 42 160" fill="none" stroke={green} strokeWidth="2.5" strokeLinecap="round" opacity="0.4" />
-              <path d="M152 100 Q158 115 160 135 Q162 150 158 160" fill="none" stroke={green} strokeWidth="2.5" strokeLinecap="round" opacity="0.4" />
-            </g>
-          )}
-        </g>
-      )}
-
-      {/* ─── SESSION C: Mobility/Balance ─── */}
-      {sessionId === 'c' && (
-        <g>
-          {/* Hip joints */}
-          {activeIndex >= 0 && (
-            <g>
-              <circle cx="72" cy="205" r="10" fill={green30} stroke={green} strokeWidth="1.5" />
-              <circle cx="128" cy="205" r="10" fill={green30} stroke={green} strokeWidth="1.5" />
-            </g>
-          )}
-          {/* Full legs for squat/ankle */}
-          {activeIndex >= 1 && (
-            <g>
-              <path d="M70 210 L67 250 Q65 290 68 350" fill="none" stroke={green} strokeWidth="3" strokeLinecap="round" opacity="0.5" />
-              <path d="M130 210 L133 250 Q135 290 132 350" fill="none" stroke={green} strokeWidth="3" strokeLinecap="round" opacity="0.5" />
-            </g>
-          )}
-          {/* Ankles */}
-          {activeIndex >= 3 && (
-            <g>
-              <circle cx="65" cy="348" r="8" fill={green30} stroke={green} strokeWidth="1.5" />
-              <circle cx="135" cy="348" r="8" fill={green30} stroke={green} strokeWidth="1.5" />
-            </g>
-          )}
-          {/* Spine for full body awareness */}
-          {activeIndex >= 6 && (
-            <line x1="100" y1="72" x2="100" y2="198" stroke={green} strokeWidth="2" strokeLinecap="round" opacity="0.4" strokeDasharray="4,3" />
-          )}
-        </g>
-      )}
+    <svg viewBox="0 0 120 280" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="60" cy="24" r="18" fill={isUpper ? color : muted} />
+      <rect x="53" y="42" width="14" height="14" rx="6" fill={isUpper ? color : muted} />
+      <rect x="34" y="58" width="52" height="78" rx="20" fill={isUpper ? color : muted} />
+      <rect x="14" y="66" width="20" height="14" rx="7" fill={isUpper ? color : muted} />
+      <rect x="6" y="78" width="14" height="56" rx="7" fill={isUpper ? color : muted} />
+      <rect x="86" y="66" width="20" height="14" rx="7" fill={isUpper ? color : muted} />
+      <rect x="100" y="78" width="14" height="56" rx="7" fill={isUpper ? color : muted} />
+      <rect x="34" y="136" width="52" height="30" rx="12" fill={isLegs || isBalance ? color : muted} />
+      <rect x="36" y="164" width="20" height="58" rx="10" fill={isLegs || isBalance ? color : muted} />
+      <rect x="64" y="164" width="20" height="58" rx="10" fill={isLegs || isBalance ? color : muted} />
+      <rect x="38" y="220" width="16" height="44" rx="8" fill={isLegs || isBalance ? color : muted} />
+      <rect x="66" y="220" width="16" height="44" rx="8" fill={isLegs || isBalance ? color : muted} />
+      <rect x="28" y="258" width="34" height="12" rx="6" fill={isLegs || isBalance ? color : muted} />
+      <rect x="58" y="258" width="34" height="12" rx="6" fill={isLegs || isBalance ? color : muted} />
     </svg>
   );
 }
 
-// ─── Main App ───
+function TimerPanel({
+  exercise,
+  colorHex,
+  isRunning,
+  secondsLeft,
+  totalSeconds,
+  done,
+  onStart,
+  onStop,
+  onReset,
+  onFocus,
+}: {
+  exercise: Exercise | null;
+  colorHex: string;
+  isRunning: boolean;
+  secondsLeft: number;
+  totalSeconds: number;
+  done: boolean;
+  onStart: () => void;
+  onStop: () => void;
+  onReset: () => void;
+  onFocus: () => void;
+}) {
+  if (!exercise || !exercise.duration) {
+    return (
+      <div className="session-card p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timer</p>
+            <h2 className="mt-1 text-lg font-semibold text-stone-900">Kies een oefening met tijd</h2>
+          </div>
+          <div className="text-2xl">⏱</div>
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-stone-500">
+          Selecteer rechts een stretch of hold. De timer blijft links zichtbaar terwijl je door de sessie scrolt.
+        </p>
+      </div>
+    );
+  }
+
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+  const progress = totalSeconds > 0 ? secondsLeft / totalSeconds : 1;
+  const dashOffset = circumference - progress * circumference;
+  const label = done ? '✓' : formatSeconds(secondsLeft || totalSeconds);
+
+  return (
+    <div className="session-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timer</p>
+          <h2 className="mt-1 text-lg font-semibold text-stone-900">{exercise.name}</h2>
+          <p className="mt-1 text-sm text-stone-500">{exercise.duration}</p>
+        </div>
+        <button
+          onClick={onFocus}
+          className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 transition hover:bg-stone-200"
+        >
+          Naar oefening
+        </button>
+      </div>
+
+      <div className="mt-5 flex flex-col items-center gap-4 rounded-[1.75rem] bg-stone-50 px-5 py-6 text-center">
+        <div className="relative h-36 w-36">
+          <svg className="timer-ring h-full w-full" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="#e7e5e4" strokeWidth="8" />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke={done ? '#16a34a' : colorHex}
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={done ? 0 : dashOffset}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-4xl font-bold tracking-tight text-stone-900">{label}</span>
+            <span className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-400">
+              {done ? 'klaar' : isRunning ? 'bezig' : 'gereed'}
+            </span>
+          </div>
+        </div>
+
+        <p className="max-w-xs text-sm leading-relaxed text-stone-500">
+          {done
+            ? 'Mooi. Deze timer is klaar — start opnieuw als je nog een ronde wilt doen.'
+            : 'De timer is groter en sticky gemaakt, zodat hij op iPad steeds in beeld blijft.'}
+        </p>
+
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {!isRunning && !done && (
+            <button
+              onClick={onStart}
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+              style={{ backgroundColor: colorHex }}
+            >
+              Start {exercise.duration}
+            </button>
+          )}
+
+          {isRunning && (
+            <button
+              onClick={onStop}
+              className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700"
+            >
+              Pauzeer
+            </button>
+          )}
+
+          {(isRunning || secondsLeft > 0 || done) && (
+            <button
+              onClick={onReset}
+              className="rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:bg-stone-200"
+            >
+              Reset
+            </button>
+          )}
+
+          {!isRunning && !done && secondsLeft > 0 && (
+            <button
+              onClick={onStart}
+              className="rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:bg-stone-200"
+            >
+              Hervat
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
-  const [view, setView] = useState<'home' | 'session' | 'exercise' | 'history'>('home');
+  const [view, setView] = useState<'home' | 'session' | 'history'>('home');
   const [activeSession, setActiveSession] = useState<'a' | 'b' | 'c'>('a');
   const [exerciseIndex, setExerciseIndex] = useState(0);
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [expandedExercise, setExpandedExercise] = useState<number | null>(0);
+  const [completed, setCompleted] = useState<Set<number>>(new Set());
   const [records, setRecords] = useState<DayRecord[]>([]);
   const [notes, setNotes] = useState('');
-  const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
+  const [timerExerciseIndex, setTimerExerciseIndex] = useState<number | null>(null);
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState(0);
+  const [timerTotalSeconds, setTimerTotalSeconds] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerDoneIndex, setTimerDoneIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    setRecords(loadRecords());
-    const today = new Date().toISOString().slice(0, 10);
-    const session = getCurrentWeekSession();
-    const todayRecord = loadRecords().find(r => r.date === today && r.sessionId === session);
-    if (todayRecord) {
-      setCompleted(new Set(Array.from({ length: todayRecord.completed }, (_, i) => `done-${i}`)));
-      setNotes(todayRecord.notes || '');
-    }
+    const frame = window.requestAnimationFrame(() => {
+      setRecords(loadRecords());
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const currentSession = sessions.find(s => s.id === activeSession)!;
+  useEffect(() => {
+    if (!timerRunning) return;
 
-  // ─── HOME ───
+    const id = window.setInterval(() => {
+      setTimerSecondsLeft((current) => {
+        if (current <= 1) {
+          window.clearInterval(id);
+          setTimerRunning(false);
+          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200]);
+          }
+          if (timerExerciseIndex !== null) {
+            setTimerDoneIndex(timerExerciseIndex);
+          }
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [timerRunning, timerExerciseIndex]);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const currentSession = sessions.find((session) => session.id === activeSession) ?? sessions[0];
+  const selectedExercise = currentSession.exercises[exerciseIndex] ?? currentSession.exercises[0];
+  const totalDone = completed.size;
+  const progress = totalDone / currentSession.exercises.length;
+  const nextOpenIndex = getNextOpenExercise(currentSession, completed);
+  const nextOpenExercise = nextOpenIndex >= 0 ? currentSession.exercises[nextOpenIndex] : null;
+
+  const displayedTimerIndex = timerExerciseIndex ?? (selectedExercise?.duration ? exerciseIndex : null);
+
+  const timerExercise = displayedTimerIndex !== null ? currentSession.exercises[displayedTimerIndex] : null;
+
+  const openSession = (sessionId: 'a' | 'b' | 'c') => {
+    const stored = loadRecords();
+    const today = new Date().toISOString().slice(0, 10);
+    const todayRecord = stored.find((record) => record.date === today && record.sessionId === sessionId);
+
+    setRecords(stored);
+    setActiveSession(sessionId);
+    setExerciseIndex(0);
+    setExpandedExercise(0);
+    setCompleted(todayRecord ? new Set(Array.from({ length: todayRecord.completed }, (_, index) => index)) : new Set());
+    setNotes(todayRecord?.notes || '');
+    setTimerExerciseIndex(null);
+    setTimerSecondsLeft(0);
+    setTimerTotalSeconds(0);
+    setTimerRunning(false);
+    setTimerDoneIndex(null);
+    setView('session');
+  };
+
+  const selectExercise = (index: number) => {
+    setExerciseIndex(index);
+    setExpandedExercise(index);
+  };
+
+  const startTimer = (index: number) => {
+    const exercise = currentSession.exercises[index];
+    const seconds = parseDurationToSeconds(exercise.duration);
+    if (!seconds) return;
+
+    setTimerExerciseIndex(index);
+    setTimerDoneIndex(null);
+
+    if (timerRunning && timerExerciseIndex === index && timerSecondsLeft > 0) {
+      return;
+    }
+
+    if (!timerRunning && timerExerciseIndex === index && timerSecondsLeft > 0) {
+      setTimerRunning(true);
+      return;
+    }
+
+    setTimerTotalSeconds(seconds);
+    setTimerSecondsLeft(seconds);
+    setTimerRunning(true);
+  };
+
+  const resetTimer = () => {
+    setTimerRunning(false);
+    setTimerSecondsLeft(0);
+    setTimerTotalSeconds(0);
+    setTimerDoneIndex(null);
+    setTimerExerciseIndex(displayedTimerIndex);
+  };
+
+  const focusTimerExercise = () => {
+    if (displayedTimerIndex === null) return;
+    selectExercise(displayedTimerIndex);
+  };
+
+  const toggleExerciseDone = (index: number) => {
+    setCompleted((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(index)) {
+        next.delete(index);
+        return next;
+      }
+
+      next.add(index);
+
+      const nextIndex = currentSession.exercises.findIndex((_, itemIndex) => itemIndex > index && !next.has(itemIndex));
+      if (nextIndex >= 0) {
+        setExerciseIndex(nextIndex);
+        setExpandedExercise(nextIndex);
+      }
+
+      return next;
+    });
+  };
+
   if (view === 'home') {
-    const recommendedSession = sessions.find(s => s.id === getCurrentWeekSession())!;
-    const streak = records.filter(r => {
-      const d = new Date(r.date);
+    const recommendedSession = sessions.find((session) => session.id === getCurrentWeekSession()) ?? sessions[0];
+    const streak = records.filter((record) => {
+      const day = new Date(record.date);
       const now = new Date();
-      const diff = Math.floor((now.getTime() - d.getTime()) / (1000*60*60*24));
-      return diff <= 14 && r.completed / r.total >= 0.7;
+      const diff = Math.floor((now.getTime() - day.getTime()) / (1000 * 60 * 60 * 24));
+      return diff <= 14 && record.completed / record.total >= 0.7;
     }).length;
 
     return (
       <div className="min-h-screen bg-stone-50">
-        <div className="max-w-lg mx-auto px-5 py-8">
-          {/* Header */}
-          <div className="text-center mb-10">
+        <div className="app-page app-container px-4 py-8 sm:px-6">
+          <div className="mb-10 text-center">
             <h1 className="text-3xl font-bold tracking-tight text-stone-900">Bewegen</h1>
-            <p className="text-stone-500 mt-1 text-sm">Knie · Mobiliteit · Houding</p>
+            <p className="mt-2 text-sm text-stone-500">Knie · Mobiliteit · Houding</p>
           </div>
 
-          {/* Session cards */}
-          <div className="space-y-4 mb-8">
-            <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-widest">Vandaag</h2>
-
+          <div className="mb-8 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
             <button
-              onClick={() => {
-                setActiveSession(recommendedSession.id);
-                setExerciseIndex(0);
-                setView('session');
-              }}
-              className="w-full bg-white rounded-2xl p-6 border border-stone-200 text-left hover:shadow-lg transition-shadow"
+              onClick={() => openSession(recommendedSession.id)}
+              className="session-card w-full p-6 text-left transition hover:-translate-y-0.5 hover:shadow-lg"
               style={{ borderLeftWidth: '4px', borderLeftColor: recommendedSession.colorHex }}
             >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl font-extrabold" style={{ color: recommendedSession.colorHex }}>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="text-3xl font-black" style={{ color: recommendedSession.colorHex }}>
                   {recommendedSession.id.toUpperCase()}
                 </span>
                 <div>
                   <div className="font-semibold text-stone-900">{recommendedSession.name}</div>
-                  <div className="text-xs text-stone-400">{recommendedSession.exercises.length} oefeningen · {recommendedSession.focus}</div>
-                </div>
-                <span className="ml-auto text-xs bg-stone-100 text-stone-500 px-2 py-1 rounded-full">Aanbevolen</span>
-              </div>
-            </button>
-
-            {sessions.filter(s => s.id !== recommendedSession.id).map(s => (
-              <button
-                key={s.id}
-                onClick={() => { setActiveSession(s.id); setExerciseIndex(0); setView('session'); }}
-                className="w-full bg-white rounded-2xl p-5 border border-stone-100 text-left hover:shadow-lg transition-opacity opacity-70 hover:opacity-100"
-                style={{ borderLeftWidth: '4px', borderLeftColor: s.colorHex }}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl font-bold" style={{ color: s.colorHex }}>{s.id.toUpperCase()}</span>
-                  <div>
-                    <div className="font-medium text-stone-800">{s.name}</div>
-                    <div className="text-xs text-stone-400">{s.exercises.length} oefeningen</div>
+                  <div className="text-xs text-stone-400">
+                    {recommendedSession.exercises.length} oefeningen · {recommendedSession.focus}
                   </div>
                 </div>
-              </button>
-            ))}
+                <span className="ml-auto rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-500">
+                  Aanbevolen
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-stone-600">
+                Vandaag past sessie {recommendedSession.id.toUpperCase()} het best. Grote timer en iPad-layout zitten nu in de sessieweergave.
+              </p>
+            </button>
+
+            <div className="session-card p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Ritme</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-left">
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <div className="text-2xl font-bold text-stone-900">{records.length}</div>
+                  <div className="mt-1 text-xs text-stone-500">Opgeslagen sessies</div>
+                </div>
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <div className="text-2xl font-bold text-stone-900">{streak}</div>
+                  <div className="mt-1 text-xs text-stone-500">Goede dagen / 14</div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* History button */}
+          <div className="space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Alle sessies</h2>
+            <div className="grid gap-4 md:grid-cols-3">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => openSession(session.id)}
+                  className="session-card w-full p-5 text-left transition hover:-translate-y-0.5 hover:shadow-lg"
+                  style={{ borderTopWidth: '4px', borderTopColor: session.colorHex }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="text-xl font-bold" style={{ color: session.colorHex }}>
+                        {session.id.toUpperCase()}
+                      </span>
+                      <div className="mt-1 font-medium text-stone-900">{session.name}</div>
+                      <div className="mt-1 text-xs text-stone-400">{session.exercises.length} oefeningen</div>
+                    </div>
+                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-500">Open</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
             onClick={() => setView('history')}
-            className="w-full bg-white rounded-xl p-4 border border-stone-100 text-left text-stone-600 text-sm hover:bg-stone-50"
+            className="session-card mt-6 w-full p-4 text-left text-sm text-stone-600 transition hover:bg-stone-100"
           >
             📊 Geschiedenis bekijken — {records.length} sessies geregistreerd
           </button>
-
-          {/* Streak */}
-          {streak > 0 && (
-            <div className="mt-4 text-center text-sm text-stone-400">
-              {streak} van de laatste 14 dagen getraind
-            </div>
-          )}
         </div>
 
-        {/* Bottom bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-stone-200 py-3">
-          <div className="max-w-lg mx-auto flex justify-around text-xs text-stone-400">
-            <button onClick={() => setView('home')} className="flex flex-col items-center gap-1 text-stone-800 font-medium">
+        <div className="bottom-nav fixed bottom-0 left-0 right-0 border-t border-stone-200 bg-white/90 backdrop-blur">
+          <div className="app-container flex justify-around px-4 py-3 text-xs text-stone-400 sm:px-6">
+            <button onClick={() => setView('home')} className="flex flex-col items-center gap-1 font-medium text-stone-900">
               <span className="text-lg">💪</span>Home
             </button>
             <button onClick={() => setView('history')} className="flex flex-col items-center gap-1">
@@ -288,196 +468,370 @@ export default function HomePage() {
     );
   }
 
-  // ─── SESSION VIEW ───
   if (view === 'session') {
-    const session = sessions.find(s => s.id === activeSession)!;
-    const totalDone = [...completed].filter(c => c.startsWith('done-')).length;
-    const progress = totalDone / session.exercises.length;
-
     return (
       <div className="min-h-screen bg-stone-50">
-        <div className="max-w-lg mx-auto px-5 py-6">
-          {/* Header */}
-          <button onClick={() => setView('home')} className="text-sm text-stone-400 mb-4">← Terug</button>
+        <div className="app-page app-container px-4 py-5 sm:px-6 lg:py-6">
+          <div className="session-shell">
+            <aside className="session-sidebar-stick">
+              <div className="session-sidebar-stack">
+                <div className="session-card p-5">
+                  <button onClick={() => setView('home')} className="text-sm text-stone-400 transition hover:text-stone-700">
+                    ← Terug
+                  </button>
 
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-3xl font-extrabold" style={{ color: session.colorHex }}>{session.id.toUpperCase()}</span>
-            <div>
-              <h1 className="text-xl font-bold text-stone-900">{session.name}</h1>
-              <p className="text-xs text-stone-400">{session.focus}</p>
-            </div>
-          </div>
-
-          {/* Progress */}
-          <div className="mb-6">
-            <div className="flex justify-between text-xs text-stone-400 mb-1">
-              <span>{totalDone} van {session.exercises.length} klaar</span>
-              <span>{Math.round(progress * 100)}%</span>
-            </div>
-            <div className="w-full h-2 bg-stone-200 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${progress * 100}%`, backgroundColor: session.colorHex }}
-              />
-            </div>
-          </div>
-
-          {/* Body + exercises */}
-          <div className="space-y-3">
-            {/* Body figure */}
-            <div className="bg-white rounded-xl border border-stone-200 p-4 flex justify-center">
-              <MuscleFigure sessionId={session.id} activeIndex={totalDone} />
-            </div>
-
-            {/* Exercises */}
-            {session.exercises.map((ex: Exercise, i: number) => (
-              <div key={ex.id} className={`bg-white rounded-xl border transition-all ${expandedExercise === i ? 'border-l-4 shadow-md' : 'border-stone-200'}`}
-                   style={expandedExercise === i ? { borderLeftColor: session.colorHex } : {}}>
-                <button
-                  onClick={() => setExpandedExercise(expandedExercise === i ? null : i)}
-                  className="w-full p-4 text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
-                      ${completed.has(`done-${i}`) ? 'text-white' : 'bg-stone-100 text-stone-400'}`}
-                      style={completed.has(`done-${i}`) ? { backgroundColor: session.colorHex } : {}}>
-                      {completed.has(`done-${i}`) ? '✓' : i + 1}
+                  <div className="mt-4 flex items-start gap-4">
+                    <span className="text-4xl font-black leading-none" style={{ color: currentSession.colorHex }}>
+                      {currentSession.id.toUpperCase()}
                     </span>
-                    <div className="flex-1">
-                      <div className={`font-medium ${completed.has(`done-${i}`) ? 'line-through text-stone-400' : 'text-stone-800'}`}>
-                        {ex.name}
+                    <div>
+                      <h1 className="text-2xl font-bold tracking-tight text-stone-900">{currentSession.name}</h1>
+                      <p className="mt-1 text-sm leading-relaxed text-stone-500">{currentSession.focus}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <div className="text-lg font-bold text-stone-900">{totalDone}</div>
+                      <div className="mt-1 text-xs text-stone-500">Klaar</div>
+                    </div>
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <div className="text-lg font-bold text-stone-900">{currentSession.exercises.length}</div>
+                      <div className="mt-1 text-xs text-stone-500">Totaal</div>
+                    </div>
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <div className="text-lg font-bold text-stone-900">{Math.round(progress * 100)}%</div>
+                      <div className="mt-1 text-xs text-stone-500">Voortgang</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-200">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${progress * 100}%`, backgroundColor: currentSession.colorHex }}
+                    />
+                  </div>
+                </div>
+
+                <TimerPanel
+                  exercise={timerExercise}
+                  colorHex={currentSession.colorHex}
+                  isRunning={timerRunning}
+                  secondsLeft={timerSecondsLeft}
+                  totalSeconds={timerTotalSeconds || parseDurationToSeconds(timerExercise?.duration)}
+                  done={timerDoneIndex !== null && displayedTimerIndex === timerDoneIndex}
+                  onStart={() => {
+                    if (displayedTimerIndex !== null) startTimer(displayedTimerIndex);
+                  }}
+                  onStop={() => setTimerRunning(false)}
+                  onReset={resetTimer}
+                  onFocus={focusTimerExercise}
+                />
+
+                <div className="session-card p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Focus</p>
+                      <h2 className="mt-1 text-lg font-semibold text-stone-900">Sessie-overzicht</h2>
+                    </div>
+                    {nextOpenExercise && (
+                      <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-500">
+                        Volgende: {nextOpenIndex + 1}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-[0.95fr_1.05fr] lg:grid-cols-1">
+                    <div className="session-figure rounded-[1.75rem] bg-stone-50 px-4 py-5">
+                      <div className="mx-auto max-w-[180px]">
+                        <MuscleFigure sessionId={currentSession.id} />
                       </div>
-                      <div className="text-xs text-stone-400">{ex.sets} sets · {ex.reps || ex.duration || ''} · {ex.muscles}</div>
-                    </div>
-                    <span className="text-stone-300 text-lg">{expandedExercise === i ? '▾' : '▸'}</span>
-                  </div>
-                </button>
-
-                {expandedExercise === i && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-stone-100 pt-3">
-                    <p className="text-sm text-stone-600 leading-relaxed">{ex.description}</p>
-
-                    <div className="bg-green-50 rounded-lg p-3 text-sm text-green-800">
-                      <strong className="block text-xs uppercase tracking-wide mb-1">💡 Tip</strong>
-                      {ex.tip}
                     </div>
 
-                    <div className="bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
-                      <strong className="block text-xs uppercase tracking-wide mb-1">⚠️ Let op</strong>
-                      {ex.commonMistake}
-                    </div>
+                    <div className="space-y-3">
+                      <div className="rounded-2xl bg-stone-50 p-4">
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Nu geselecteerd</div>
+                        <div className="mt-2 font-medium text-stone-900">{selectedExercise.name}</div>
+                        <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(selectedExercise)}</div>
+                      </div>
 
-                    <div className="flex items-center justify-between text-xs text-stone-400">
-                      <span>🏋️ {ex.equipment}</span>
-                      {ex.source && <span className="text-stone-300">{ex.source}</span>}
+                      {nextOpenExercise ? (
+                        <div className="rounded-2xl bg-stone-50 p-4">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Volgende open</div>
+                          <div className="mt-2 font-medium text-stone-900">{nextOpenExercise.name}</div>
+                          <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(nextOpenExercise)}</div>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl bg-green-50 p-4 text-green-800">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em]">Klaar</div>
+                          <div className="mt-2 text-sm font-medium">Alles is afgevinkt. Je kunt de sessie opslaan.</div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+                </div>
+
+                <div className="session-card p-5">
+                  <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
+                    Notitie (optioneel)
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    placeholder="Bijv. knie voelde rustig / laatste oefening lastig"
+                    className="mt-3 h-24 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none transition placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
+                  />
+                  <button
+                    onClick={() => {
+                      const record: DayRecord = {
+                        date: todayStr,
+                        sessionId: currentSession.id,
+                        completed: totalDone,
+                        total: currentSession.exercises.length,
+                        notes: notes || undefined,
+                      };
+                      saveRecord(record);
+                      setRecords(loadRecords());
+                      setView('home');
+                    }}
+                    className="mt-4 hidden w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 lg:block"
+                    style={{ backgroundColor: currentSession.colorHex }}
+                  >
+                    Sessie opslaan ({totalDone}/{currentSession.exercises.length})
+                  </button>
+                </div>
               </div>
-            ))}
+            </aside>
 
-            {/* Complete button */}
-            <button
-              onClick={() => {
-                const record: DayRecord = {
-                  date: todayStr,
-                  sessionId: session.id,
-                  completed: totalDone,
-                  total: session.exercises.length,
-                  notes: notes || undefined,
-                };
-                saveRecord(record);
-                setRecords(loadRecords());
-                setView('home');
-              }}
-              className="w-full py-4 rounded-xl text-white font-semibold text-base mt-4 mb-4"
-              style={{ backgroundColor: session.colorHex }}
-            >
-              Sessie Afronden ({totalDone}/{session.exercises.length})
-            </button>
+            <main className="space-y-4">
+              <div className="session-card p-4 lg:p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Oefeningen</p>
+                    <h2 className="mt-1 text-xl font-semibold text-stone-900">Scrollbare sessielijst</h2>
+                    <p className="mt-1 text-sm text-stone-500">
+                      Op iPad blijft links je overzicht en timer vast staan, terwijl rechts de oefeningencards scrollen.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {currentSession.exercises.map((exercise, index) => (
+                      <button
+                        key={exercise.id}
+                        onClick={() => selectExercise(index)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${exerciseIndex === index ? 'text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+                        style={exerciseIndex === index ? { backgroundColor: currentSession.colorHex } : undefined}
+                      >
+                        {index + 1}. {exercise.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="exercise-list">
+                {currentSession.exercises.map((exercise, index) => {
+                  const isExpanded = expandedExercise === index;
+                  const isSelected = exerciseIndex === index;
+                  const isDone = completed.has(index);
+                  const hasTimer = Boolean(exercise.duration);
+                  const isTimerTarget = displayedTimerIndex === index;
+
+                  return (
+                    <section
+                      key={exercise.id}
+                      className={`exercise-card ${isSelected ? 'is-selected' : ''} ${isDone ? 'is-done' : ''}`}
+                      style={isSelected ? { borderColor: currentSession.colorHex, boxShadow: `0 10px 30px -18px ${currentSession.colorHex}55` } : undefined}
+                    >
+                      <button
+                        onClick={() => {
+                          setExerciseIndex(index);
+                          setExpandedExercise(isExpanded ? null : index);
+                        }}
+                        className="w-full p-4 text-left lg:p-5"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${isDone ? 'text-white' : 'bg-stone-100 text-stone-500'}`}
+                            style={isDone ? { backgroundColor: currentSession.colorHex } : undefined}
+                          >
+                            {isDone ? '✓' : index + 1}
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                              <div>
+                                <div className={`text-base font-semibold ${isDone ? 'text-stone-400 line-through' : 'text-stone-900'}`}>
+                                  {exercise.name}
+                                </div>
+                                <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(exercise)}</div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2 lg:justify-end">
+                                {hasTimer && (
+                                  <span
+                                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${isTimerTarget ? 'text-white' : 'bg-stone-100 text-stone-500'}`}
+                                    style={isTimerTarget ? { backgroundColor: currentSession.colorHex } : undefined}
+                                  >
+                                    ⏱ {isTimerTarget ? 'in timer' : exercise.duration}
+                                  </span>
+                                )}
+                                {isSelected && (
+                                  <span className="rounded-full bg-stone-900 px-2.5 py-1 text-xs font-medium text-white">geselecteerd</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-stone-100 px-4 pb-4 pt-4 lg:px-5 lg:pb-5">
+                          <p className="text-sm leading-relaxed text-stone-600">{exercise.description}</p>
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            <div className="rounded-2xl bg-green-50 p-4 text-sm text-green-900">
+                              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">Tip</div>
+                              <p className="mt-2 leading-relaxed">{exercise.tip}</p>
+                            </div>
+                            <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+                              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Let op</div>
+                              <p className="mt-2 leading-relaxed">{exercise.commonMistake}</p>
+                            </div>
+                            <div className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-700 md:col-span-2 xl:col-span-1">
+                              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Materiaal</div>
+                              <p className="mt-2 leading-relaxed">{exercise.equipment}</p>
+                              {exercise.source && <p className="mt-3 text-xs text-stone-400">Bron: {exercise.source}</p>}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
+                            {hasTimer && (
+                              <button
+                                onClick={() => startTimer(index)}
+                                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                                style={{ backgroundColor: currentSession.colorHex }}
+                              >
+                                {isTimerTarget && timerRunning ? 'Timer actief' : `Start timer · ${exercise.duration}`}
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => toggleExerciseDone(index)}
+                              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isDone ? 'bg-stone-100 text-stone-600 hover:bg-stone-200' : 'text-white hover:opacity-90'}`}
+                              style={!isDone ? { backgroundColor: currentSession.colorHex } : undefined}
+                            >
+                              {isDone ? 'Markeer als open' : 'Markeer als klaar'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => {
+                  const record: DayRecord = {
+                    date: todayStr,
+                    sessionId: currentSession.id,
+                    completed: totalDone,
+                    total: currentSession.exercises.length,
+                    notes: notes || undefined,
+                  };
+                  saveRecord(record);
+                  setRecords(loadRecords());
+                  setView('home');
+                }}
+                className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 lg:hidden"
+                style={{ backgroundColor: currentSession.colorHex }}
+              >
+                Sessie opslaan ({totalDone}/{currentSession.exercises.length})
+              </button>
+            </main>
           </div>
         </div>
       </div>
     );
   }
 
-  // ─── HISTORY VIEW ───
-  if (view === 'history') {
-    const weekDays = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
+  const weekDays = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
 
-    return (
-      <div className="min-h-screen bg-stone-50">
-        <div className="max-w-lg mx-auto px-5 py-8">
-          <button onClick={() => setView('home')} className="text-sm text-stone-400 mb-4">← Terug</button>
-          <h1 className="text-xl font-bold text-stone-900 mb-6">Geschiedenis</h1>
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <div className="app-page app-container px-4 py-8 sm:px-6">
+        <button onClick={() => setView('home')} className="text-sm text-stone-400 transition hover:text-stone-700">
+          ← Terug
+        </button>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-stone-900">Geschiedenis</h1>
 
-          {records.length === 0 ? (
-            <div className="text-center py-12 text-stone-400 text-sm">
-              Nog geen sessies geregistreerd.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {records.sort((a, b) => b.date.localeCompare(a.date)).map((r, i) => {
-                const session = sessions.find(s => s.id === r.sessionId)!;
-                const d = new Date(r.date);
+        {records.length === 0 ? (
+          <div className="session-card mt-6 py-16 text-center text-sm text-stone-400">Nog geen sessies geregistreerd.</div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {[...records]
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .map((record, index) => {
+                const session = sessions.find((item) => item.id === record.sessionId) ?? sessions[0];
+                const date = new Date(record.date);
                 return (
-                  <div key={i} className="bg-white rounded-xl p-4 border border-stone-200"
-                       style={{ borderLeftWidth: '3px', borderLeftColor: session.colorHex }}>
+                  <div
+                    key={`${record.date}-${record.sessionId}-${index}`}
+                    className="session-card p-4"
+                    style={{ borderLeftWidth: '3px', borderLeftColor: session.colorHex }}
+                  >
                     <div className="flex items-center gap-3">
                       <div>
                         <div className="text-sm font-medium text-stone-800">
-                          {weekDays[d.getDay()]} {d.getDate()} {d.toLocaleDateString('nl', { month: 'short' })}
+                          {weekDays[date.getDay()]} {date.getDate()} {date.toLocaleDateString('nl-NL', { month: 'short' })}
                         </div>
                         <div className="text-xs text-stone-400">{session.name}</div>
                       </div>
                       <div className="ml-auto text-right">
                         <div className="text-lg font-bold" style={{ color: session.colorHex }}>
-                          {r.completed}/{r.total}
+                          {record.completed}/{record.total}
                         </div>
-                        <div className="text-xs text-stone-400">{Math.round(r.completed / r.total * 100)}%</div>
+                        <div className="text-xs text-stone-400">{Math.round((record.completed / record.total) * 100)}%</div>
                       </div>
                     </div>
-                    {r.notes && <div className="mt-2 text-xs text-stone-400 italic">{r.notes}</div>}
+                    {record.notes && <div className="mt-2 text-xs italic text-stone-400">{record.notes}</div>}
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* Heatmap-like summary */}
-          <div className="mt-8">
-            <h2 className="text-xs font-semibold text-stone-400 uppercase tracking-widest mb-3">Sessies per Type</h2>
-            <div className="grid grid-cols-3 gap-3">
-              {sessions.map(s => {
-                const count = records.filter(r => r.sessionId === s.id).length;
-                return (
-                  <div key={s.id} className="bg-white rounded-xl p-4 border border-stone-200 text-center"
-                       style={{ borderTopWidth: '3px', borderTopColor: s.colorHex }}>
-                    <div className="text-2xl font-bold text-stone-900">{count}</div>
-                    <div className="text-xs text-stone-400">{s.name}</div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
+        )}
 
-          <div className="h-24" />
-        </div>
-
-        {/* Bottom bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-stone-200 py-3">
-          <div className="max-w-lg mx-auto flex justify-around text-xs text-stone-400">
-            <button onClick={() => setView('home')} className="flex flex-col items-center gap-1">
-              <span className="text-lg">💪</span>Home
-            </button>
-            <button className="flex flex-col items-center gap-1 text-stone-800 font-medium">
-              <span className="text-lg">📊</span>Geschiedenis
-            </button>
+        <div className="mt-8">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Sessies per type</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {sessions.map((session) => {
+              const count = records.filter((record) => record.sessionId === session.id).length;
+              return (
+                <div
+                  key={session.id}
+                  className="session-card p-4 text-center"
+                  style={{ borderTopWidth: '3px', borderTopColor: session.colorHex }}
+                >
+                  <div className="text-2xl font-bold text-stone-900">{count}</div>
+                  <div className="mt-1 text-xs text-stone-400">{session.name}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-    );
-  }
 
-  return null;
+      <div className="bottom-nav fixed bottom-0 left-0 right-0 border-t border-stone-200 bg-white/90 backdrop-blur">
+        <div className="app-container flex justify-around px-4 py-3 text-xs text-stone-400 sm:px-6">
+          <button onClick={() => setView('home')} className="flex flex-col items-center gap-1">
+            <span className="text-lg">💪</span>Home
+          </button>
+          <button className="flex flex-col items-center gap-1 font-medium text-stone-900">
+            <span className="text-lg">📊</span>Geschiedenis
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

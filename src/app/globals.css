@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #f7f5f2;
+  color: #1c1917;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.app-container {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+}
+
+.app-page {
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.session-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.session-sidebar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.session-card {
+  border: 1px solid #e7e5e4;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.03);
+}
+
+.session-figure {
+  border: 1px solid #ebe7e1;
+}
+
+.exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.exercise-card {
+  border: 1px solid #e7e5e4;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.96);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, opacity 180ms ease;
+}
+
+.exercise-card:hover {
+  transform: translateY(-1px);
+}
+
+.exercise-card.is-done {
+  opacity: 0.92;
+}
+
+.timer-ring {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.timer-ring circle {
+  transition: stroke-dashoffset 1s linear;
+}
+
+.bottom-nav {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+textarea {
+  resize: vertical;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 999px;
+}
+
+@media (min-width: 900px) {
+  .app-container {
+    width: min(calc(100% - 3rem), 1240px);
+  }
+
+  .session-shell {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem;
+  }
+
+  .session-sidebar-stick {
+    position: sticky;
+    top: 1.25rem;
+    max-height: calc(100vh - 2.5rem);
+    overflow: auto;
+    padding-right: 0.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .session-shell {
+    grid-template-columns: minmax(340px, 390px) minmax(0, 1fr);
+  }
+}
