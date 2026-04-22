@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { sessions } from './data';
+import { AnatomicalFigure } from './anatomical-figure';
 import { DayRecord, Exercise, Session } from './types';
 
 const STORAGE_KEY = 'trainingsprogramma-records';
@@ -42,6 +43,20 @@ function getCurrentWeekSession(): 'a' | 'b' | 'c' {
   return sessionOrder[cycle][idx];
 }
 
+function getInitialRoute(): { view: 'home' | 'session' | 'history'; session: 'a' | 'b' | 'c' } {
+  if (typeof window === 'undefined') {
+    return { view: 'home' as const, session: 'a' as const };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const sessionParam = params.get('session');
+  const session = sessionParam === 'a' || sessionParam === 'b' || sessionParam === 'c' ? sessionParam : 'a';
+  const viewParam = params.get('view');
+  const view = viewParam === 'session' || viewParam === 'history' ? viewParam : 'home';
+
+  return { view, session };
+}
+
 function parseDurationToSeconds(duration?: string) {
   if (!duration) return 0;
   const match = duration.match(/(\d+)\s*sec/i);
@@ -62,33 +77,6 @@ function getExerciseMeta(exercise: Exercise) {
 
 function getNextOpenExercise(session: Session, completed: Set<number>) {
   return session.exercises.findIndex((_, index) => !completed.has(index));
-}
-
-function MuscleFigure({ sessionId }: { sessionId: 'a' | 'b' | 'c' }) {
-  const color = sessionId === 'a' ? '#22c55e' : sessionId === 'b' ? '#3b82f6' : '#eab308';
-  const muted = '#dad6d0';
-  const isLegs = sessionId === 'a';
-  const isUpper = sessionId === 'b';
-  const isBalance = sessionId === 'c';
-
-  return (
-    <svg viewBox="0 0 120 280" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="60" cy="24" r="18" fill={isUpper ? color : muted} />
-      <rect x="53" y="42" width="14" height="14" rx="6" fill={isUpper ? color : muted} />
-      <rect x="34" y="58" width="52" height="78" rx="20" fill={isUpper ? color : muted} />
-      <rect x="14" y="66" width="20" height="14" rx="7" fill={isUpper ? color : muted} />
-      <rect x="6" y="78" width="14" height="56" rx="7" fill={isUpper ? color : muted} />
-      <rect x="86" y="66" width="20" height="14" rx="7" fill={isUpper ? color : muted} />
-      <rect x="100" y="78" width="14" height="56" rx="7" fill={isUpper ? color : muted} />
-      <rect x="34" y="136" width="52" height="30" rx="12" fill={isLegs || isBalance ? color : muted} />
-      <rect x="36" y="164" width="20" height="58" rx="10" fill={isLegs || isBalance ? color : muted} />
-      <rect x="64" y="164" width="20" height="58" rx="10" fill={isLegs || isBalance ? color : muted} />
-      <rect x="38" y="220" width="16" height="44" rx="8" fill={isLegs || isBalance ? color : muted} />
-      <rect x="66" y="220" width="16" height="44" rx="8" fill={isLegs || isBalance ? color : muted} />
-      <rect x="28" y="258" width="34" height="12" rx="6" fill={isLegs || isBalance ? color : muted} />
-      <rect x="58" y="258" width="34" height="12" rx="6" fill={isLegs || isBalance ? color : muted} />
-    </svg>
-  );
 }
 
 function TimerPanel({
@@ -227,8 +215,9 @@ function TimerPanel({
 }
 
 export default function HomePage() {
-  const [view, setView] = useState<'home' | 'session' | 'history'>('home');
-  const [activeSession, setActiveSession] = useState<'a' | 'b' | 'c'>('a');
+  const initialRoute = getInitialRoute();
+  const [view, setView] = useState<'home' | 'session' | 'history'>(initialRoute.view);
+  const [activeSession, setActiveSession] = useState<'a' | 'b' | 'c'>(initialRoute.session);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [expandedExercise, setExpandedExercise] = useState<number | null>(0);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
@@ -402,7 +391,7 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="text-sm leading-relaxed text-stone-600">
-                Vandaag past sessie {recommendedSession.id.toUpperCase()} het best. Grote timer en iPad-layout zitten nu in de sessieweergave.
+                Vandaag past sessie {recommendedSession.id.toUpperCase()} het best — rustig, duidelijk en zonder visuele ruis.
               </p>
             </button>
 
@@ -542,10 +531,8 @@ export default function HomePage() {
                   </div>
 
                   <div className="mt-4 grid gap-4 sm:grid-cols-[0.95fr_1.05fr] lg:grid-cols-1">
-                    <div className="session-figure rounded-[1.75rem] bg-stone-50 px-4 py-5">
-                      <div className="mx-auto max-w-[180px]">
-                        <MuscleFigure sessionId={currentSession.id} />
-                      </div>
+                    <div className="session-figure">
+                      <AnatomicalFigure sessionId={currentSession.id} colorHex={currentSession.colorHex} />
                     </div>
 
                     <div className="space-y-3">
