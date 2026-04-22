@@ -45,14 +45,15 @@ function getCurrentWeekSession(): 'a' | 'b' | 'c' {
 
 function getInitialRoute(): { view: 'home' | 'session' | 'history'; session: 'a' | 'b' | 'c' } {
   if (typeof window === 'undefined') {
-    return { view: 'home' as const, session: 'a' as const };
+    return { view: 'session' as const, session: 'a' as const };
   }
 
   const params = new URLSearchParams(window.location.search);
+  const defaultSession = getCurrentWeekSession();
   const sessionParam = params.get('session');
-  const session = sessionParam === 'a' || sessionParam === 'b' || sessionParam === 'c' ? sessionParam : 'a';
+  const session = sessionParam === 'a' || sessionParam === 'b' || sessionParam === 'c' ? sessionParam : defaultSession;
   const viewParam = params.get('view');
-  const view = viewParam === 'session' || viewParam === 'history' ? viewParam : 'home';
+  const view = viewParam === 'home' || viewParam === 'history' || viewParam === 'session' ? viewParam : 'session';
 
   return { view, session };
 }
@@ -268,10 +269,22 @@ export default function HomePage() {
   const progress = totalDone / currentSession.exercises.length;
   const nextOpenIndex = getNextOpenExercise(currentSession, completed);
   const nextOpenExercise = nextOpenIndex >= 0 ? currentSession.exercises[nextOpenIndex] : null;
+  const firstTimedExerciseIndex = currentSession.exercises.findIndex((exercise) => parseDurationToSeconds(exercise.duration) > 0);
 
-  const displayedTimerIndex = timerExerciseIndex ?? (selectedExercise?.duration ? exerciseIndex : null);
+  const displayedTimerIndex =
+    timerExerciseIndex ?? (selectedExercise?.duration ? exerciseIndex : firstTimedExerciseIndex >= 0 ? firstTimedExerciseIndex : null);
 
   const timerExercise = displayedTimerIndex !== null ? currentSession.exercises[displayedTimerIndex] : null;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('view', view);
+    params.set('session', activeSession);
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, [view, activeSession]);
 
   const openSession = (sessionId: 'a' | 'b' | 'c') => {
     const stored = loadRecords();
@@ -502,6 +515,21 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                <TimerPanel
+                  exercise={timerExercise}
+                  colorHex={currentSession.colorHex}
+                  isRunning={timerRunning}
+                  secondsLeft={timerSecondsLeft}
+                  totalSeconds={timerTotalSeconds || parseDurationToSeconds(timerExercise?.duration)}
+                  done={timerDoneIndex !== null && displayedTimerIndex === timerDoneIndex}
+                  onStart={() => {
+                    if (displayedTimerIndex !== null) startTimer(displayedTimerIndex);
+                  }}
+                  onStop={() => setTimerRunning(false)}
+                  onReset={resetTimer}
+                  onFocus={focusTimerExercise}
+                />
+
                 <div className="session-card p-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -542,21 +570,6 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
-
-                <TimerPanel
-                  exercise={timerExercise}
-                  colorHex={currentSession.colorHex}
-                  isRunning={timerRunning}
-                  secondsLeft={timerSecondsLeft}
-                  totalSeconds={timerTotalSeconds || parseDurationToSeconds(timerExercise?.duration)}
-                  done={timerDoneIndex !== null && displayedTimerIndex === timerDoneIndex}
-                  onStart={() => {
-                    if (displayedTimerIndex !== null) startTimer(displayedTimerIndex);
-                  }}
-                  onStop={() => setTimerRunning(false)}
-                  onReset={resetTimer}
-                  onFocus={focusTimerExercise}
-                />
 
                 <div className="session-card p-5">
                   <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
