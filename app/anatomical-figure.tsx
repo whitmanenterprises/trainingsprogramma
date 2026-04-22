@@ -137,14 +137,14 @@ export function AnatomicalFigure({
 
   return (
     <div className="figure-panel rounded-[1.65rem] px-4 py-4">
-      <div className="mx-auto w-full max-w-[246px]">
+      <div className="mx-auto w-full max-w-[282px]">
         <BodyModel side={config.side} activeMuscles={config.active} glowMuscles={glowMuscles} />
       </div>
-      <div className="mt-2 text-center">
+      <div className="mt-3 text-center">
         <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-400">
           {config.side === 'front' ? 'voorkant' : 'achterkant'}
         </div>
-        <div className="mt-1 text-xs font-medium text-stone-700">{config.label}</div>
+        <div className="mt-1 text-sm font-medium text-stone-700">{config.label}</div>
       </div>
     </div>
   );

@@ -29,6 +29,11 @@ function saveRecord(record: DayRecord) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
+function deleteRecord(date: string, sessionId: 'a' | 'b' | 'c') {
+  const records = loadRecords().filter((record) => !(record.date === date && record.sessionId === sessionId));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
 function getCurrentWeekSession(): 'a' | 'b' | 'c' {
   const weekNum = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   const cycle = weekNum % 3;
@@ -80,7 +85,7 @@ function getNextOpenExercise(session: Session, completed: Set<number>) {
   return session.exercises.findIndex((_, index) => !completed.has(index));
 }
 
-function TimerPanel({
+function ExerciseTimer({
   exercise,
   colorHex,
   isRunning,
@@ -90,9 +95,8 @@ function TimerPanel({
   onStart,
   onStop,
   onReset,
-  onFocus,
 }: {
-  exercise: Exercise | null;
+  exercise: Exercise;
   colorHex: string;
   isRunning: boolean;
   secondsLeft: number;
@@ -101,25 +105,7 @@ function TimerPanel({
   onStart: () => void;
   onStop: () => void;
   onReset: () => void;
-  onFocus: () => void;
 }) {
-  if (!exercise || !exercise.duration) {
-    return (
-      <div className="session-card p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timer</p>
-            <h2 className="mt-1 text-lg font-semibold text-stone-900">Kies een oefening met tijd</h2>
-          </div>
-          <div className="text-2xl">⏱</div>
-        </div>
-        <p className="mt-2 text-sm leading-relaxed text-stone-500">
-          Kies rechts een oefening met tijd. Dan verschijnt hier direct de timer.
-        </p>
-      </div>
-    );
-  }
-
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
   const progress = totalSeconds > 0 ? secondsLeft / totalSeconds : 1;
@@ -127,23 +113,20 @@ function TimerPanel({
   const label = done ? '✓' : formatSeconds(secondsLeft || totalSeconds);
 
   return (
-    <div className="session-card p-4">
+    <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50/90 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timer</p>
-          <h2 className="mt-1 text-lg font-semibold text-stone-900">{exercise.name}</h2>
+          <h3 className="mt-1 text-base font-semibold text-stone-900">{exercise.name}</h3>
           <p className="mt-1 text-sm text-stone-500">{exercise.duration}</p>
         </div>
-        <button
-          onClick={onFocus}
-          className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 transition hover:bg-stone-200"
-        >
-          Naar oefening
-        </button>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-stone-500 shadow-sm">
+          {done ? 'klaar' : isRunning ? 'actief' : 'gereed'}
+        </span>
       </div>
 
-      <div className="mt-4 flex flex-col items-center gap-4 rounded-[1.75rem] bg-stone-50 px-5 py-5 text-center">
-        <div className="relative h-36 w-36">
+      <div className="mt-4 flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+        <div className="relative h-32 w-32 flex-shrink-0">
           <svg className="timer-ring h-full w-full" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r={radius} fill="none" stroke="#e7e5e4" strokeWidth="8" />
             <circle
@@ -166,49 +149,52 @@ function TimerPanel({
           </div>
         </div>
 
-        <p className="max-w-xs text-sm leading-relaxed text-stone-500">
-          {done
-            ? 'Mooi. Deze timer is klaar — start opnieuw als je nog een ronde wilt doen.'
-            : 'De timer is groter en sticky gemaakt, zodat hij op iPad steeds in beeld blijft.'}
-        </p>
+        <div className="flex flex-1 flex-col gap-3 sm:items-start">
+          <p className="max-w-sm text-sm leading-relaxed text-stone-500">
+            {done
+              ? 'Mooi. Deze timer is klaar — start opnieuw als je nog een ronde wilt doen.'
+              : 'Timer staat nu bij de oefening zelf, zodat links ruimte vrijkomt voor het figuur.'}
+          </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {!isRunning && !done && (
-            <button
-              onClick={onStart}
-              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-              style={{ backgroundColor: colorHex }}
-            >
-              Start {exercise.duration}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {!isRunning && !done && secondsLeft === 0 && (
+              <button
+                onClick={onStart}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                style={{ backgroundColor: colorHex }}
+              >
+                Start {exercise.duration}
+              </button>
+            )}
 
-          {isRunning && (
-            <button
-              onClick={onStop}
-              className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700"
-            >
-              Pauzeer
-            </button>
-          )}
+            {!isRunning && !done && secondsLeft > 0 && (
+              <button
+                onClick={onStart}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                style={{ backgroundColor: colorHex }}
+              >
+                Hervat
+              </button>
+            )}
 
-          {(isRunning || secondsLeft > 0 || done) && (
-            <button
-              onClick={onReset}
-              className="rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:bg-stone-200"
-            >
-              Reset
-            </button>
-          )}
+            {isRunning && (
+              <button
+                onClick={onStop}
+                className="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700"
+              >
+                Pauzeer
+              </button>
+            )}
 
-          {!isRunning && !done && secondsLeft > 0 && (
-            <button
-              onClick={onStart}
-              className="rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:bg-stone-200"
-            >
-              Hervat
-            </button>
-          )}
+            {(isRunning || secondsLeft > 0 || done) && (
+              <button
+                onClick={onReset}
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:bg-stone-100"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -274,8 +260,6 @@ export default function HomePage() {
   const displayedTimerIndex =
     timerExerciseIndex ?? (selectedExercise?.duration ? exerciseIndex : firstTimedExerciseIndex >= 0 ? firstTimedExerciseIndex : null);
 
-  const timerExercise = displayedTimerIndex !== null ? currentSession.exercises[displayedTimerIndex] : null;
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -310,11 +294,35 @@ export default function HomePage() {
     setExpandedExercise(index);
   };
 
+  const persistCurrentRecord = (nextCompleted: Set<number>, nextNotes: string) => {
+    const nextTotalDone = nextCompleted.size;
+    const trimmedNotes = nextNotes.trim();
+
+    if (nextTotalDone === 0 && trimmedNotes.length === 0) {
+      deleteRecord(todayStr, currentSession.id);
+      setRecords(loadRecords());
+      return;
+    }
+
+    const record: DayRecord = {
+      date: todayStr,
+      sessionId: currentSession.id,
+      completed: nextTotalDone,
+      total: currentSession.exercises.length,
+      notes: trimmedNotes ? nextNotes : undefined,
+    };
+
+    saveRecord(record);
+    setRecords(loadRecords());
+  };
+
   const startTimer = (index: number) => {
     const exercise = currentSession.exercises[index];
     const seconds = parseDurationToSeconds(exercise.duration);
     if (!seconds) return;
 
+    setExerciseIndex(index);
+    setExpandedExercise(index);
     setTimerExerciseIndex(index);
     setTimerDoneIndex(null);
 
@@ -340,21 +348,18 @@ export default function HomePage() {
     setTimerExerciseIndex(displayedTimerIndex);
   };
 
-  const focusTimerExercise = () => {
-    if (displayedTimerIndex === null) return;
-    selectExercise(displayedTimerIndex);
-  };
-
   const toggleExerciseDone = (index: number) => {
     setCompleted((prev) => {
       const next = new Set(prev);
 
       if (next.has(index)) {
         next.delete(index);
+        persistCurrentRecord(next, notes);
         return next;
       }
 
       next.add(index);
+      persistCurrentRecord(next, notes);
 
       const nextIndex = currentSession.exercises.findIndex((_, itemIndex) => itemIndex > index && !next.has(itemIndex));
       if (nextIndex >= 0) {
@@ -515,21 +520,6 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <TimerPanel
-                  exercise={timerExercise}
-                  colorHex={currentSession.colorHex}
-                  isRunning={timerRunning}
-                  secondsLeft={timerSecondsLeft}
-                  totalSeconds={timerTotalSeconds || parseDurationToSeconds(timerExercise?.duration)}
-                  done={timerDoneIndex !== null && displayedTimerIndex === timerDoneIndex}
-                  onStart={() => {
-                    if (displayedTimerIndex !== null) startTimer(displayedTimerIndex);
-                  }}
-                  onStop={() => setTimerRunning(false)}
-                  onReset={resetTimer}
-                  onFocus={focusTimerExercise}
-                />
-
                 <div className="session-card p-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -577,21 +567,17 @@ export default function HomePage() {
                   </label>
                   <textarea
                     value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
+                    onChange={(event) => {
+                      const nextNotes = event.target.value;
+                      setNotes(nextNotes);
+                      persistCurrentRecord(completed, nextNotes);
+                    }}
                     placeholder="Bijv. knie voelde rustig / laatste oefening lastig"
                     className="mt-3 h-24 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 outline-none transition placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
                   />
                   <button
                     onClick={() => {
-                      const record: DayRecord = {
-                        date: todayStr,
-                        sessionId: currentSession.id,
-                        completed: totalDone,
-                        total: currentSession.exercises.length,
-                        notes: notes || undefined,
-                      };
-                      saveRecord(record);
-                      setRecords(loadRecords());
+                      persistCurrentRecord(completed, notes);
                       setView('home');
                     }}
                     className="mt-4 hidden w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 lg:block"
@@ -705,17 +691,23 @@ export default function HomePage() {
                             </div>
                           </div>
 
-                          <div className="mt-4 flex flex-wrap items-center gap-2">
-                            {hasTimer && (
-                              <button
-                                onClick={() => startTimer(index)}
-                                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-                                style={{ backgroundColor: currentSession.colorHex }}
-                              >
-                                {isTimerTarget && timerRunning ? 'Timer actief' : `Start timer · ${exercise.duration}`}
-                              </button>
-                            )}
+                          {hasTimer && (
+                            <div className="mt-4">
+                              <ExerciseTimer
+                                exercise={exercise}
+                                colorHex={currentSession.colorHex}
+                                isRunning={isTimerTarget && timerRunning}
+                                secondsLeft={isTimerTarget ? timerSecondsLeft : 0}
+                                totalSeconds={isTimerTarget ? timerTotalSeconds || parseDurationToSeconds(exercise.duration) : parseDurationToSeconds(exercise.duration)}
+                                done={timerDoneIndex === index}
+                                onStart={() => startTimer(index)}
+                                onStop={() => setTimerRunning(false)}
+                                onReset={resetTimer}
+                              />
+                            </div>
+                          )}
 
+                          <div className="mt-4 flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => toggleExerciseDone(index)}
                               className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isDone ? 'bg-stone-100 text-stone-600 hover:bg-stone-200' : 'text-white hover:opacity-90'}`}
@@ -733,15 +725,7 @@ export default function HomePage() {
 
               <button
                 onClick={() => {
-                  const record: DayRecord = {
-                    date: todayStr,
-                    sessionId: currentSession.id,
-                    completed: totalDone,
-                    total: currentSession.exercises.length,
-                    notes: notes || undefined,
-                  };
-                  saveRecord(record);
-                  setRecords(loadRecords());
+                  persistCurrentRecord(completed, notes);
                   setView('home');
                 }}
                 className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 lg:hidden"
