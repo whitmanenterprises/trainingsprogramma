@@ -460,41 +460,41 @@ export default function HomePage() {
   if (view === 'session') {
     return (
       <div className="min-h-screen bg-stone-50">
-        <div className="app-page app-container px-4 py-5 sm:px-6 lg:py-6">
+        <div className="app-page app-container px-4 py-4 sm:px-6 lg:py-5">
           <div className="session-shell">
             <aside className="session-sidebar-stick">
               <div className="session-sidebar-stack">
-                <div className="session-card p-4">
+                <div className="session-card p-3.5">
                   <button onClick={() => setView('home')} className="text-sm text-stone-400 transition hover:text-stone-700">
                     ← Terug
                   </button>
 
-                  <div className="mt-3 flex items-start gap-4">
+                  <div className="mt-2.5 flex items-start gap-3.5">
                     <span className="text-4xl font-black leading-none" style={{ color: currentSession.colorHex }}>
                       {currentSession.id.toUpperCase()}
                     </span>
                     <div>
-                      <h1 className="text-2xl font-bold tracking-tight text-stone-900">{currentSession.name}</h1>
+                      <h1 className="text-[1.7rem] font-bold tracking-tight text-stone-900">{currentSession.name}</h1>
                       <p className="mt-1 text-sm leading-relaxed text-stone-500">{currentSession.focus}</p>
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-3 gap-2.5">
-                    <div className="rounded-2xl bg-stone-50 p-3">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-2xl bg-stone-50 p-2.5">
                       <div className="text-lg font-bold text-stone-900">{totalDone}</div>
                       <div className="mt-1 text-xs text-stone-500">Klaar</div>
                     </div>
-                    <div className="rounded-2xl bg-stone-50 p-3">
+                    <div className="rounded-2xl bg-stone-50 p-2.5">
                       <div className="text-lg font-bold text-stone-900">{currentSession.exercises.length}</div>
                       <div className="mt-1 text-xs text-stone-500">Totaal</div>
                     </div>
-                    <div className="rounded-2xl bg-stone-50 p-3">
+                    <div className="rounded-2xl bg-stone-50 p-2.5">
                       <div className="text-lg font-bold text-stone-900">{Math.round(progress * 100)}%</div>
                       <div className="mt-1 text-xs text-stone-500">Voortgang</div>
                     </div>
                   </div>
 
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
+                  <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-stone-200">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{ width: `${progress * 100}%`, backgroundColor: currentSession.colorHex }}
@@ -502,7 +502,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="session-card p-4">
+                <div className="session-card p-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Focus</p>
@@ -517,11 +517,7 @@ export default function HomePage() {
 
                   <div className="mt-3 grid gap-3 sm:grid-cols-[0.95fr_1.05fr] lg:grid-cols-1">
                     <div className="session-figure">
-                      <AnatomicalFigure
-                        sessionId={currentSession.id}
-                        exerciseId={selectedExercise.id}
-                        colorHex={currentSession.colorHex}
-                      />
+                      <AnatomicalFigure sessionId={currentSession.id} exerciseId={selectedExercise.id} />
                     </div>
 
                     <div className="space-y-3">

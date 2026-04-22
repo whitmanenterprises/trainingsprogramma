@@ -15,6 +15,9 @@ type FigureConfig = {
   label: string;
 };
 
+const FIGURE_GREEN = '#22c55e';
+const FIGURE_GREEN_SOFT = '#86efac';
+
 const SESSION_FIGURE: Record<SessionId, FigureConfig> = {
   a: {
     side: 'front',
@@ -66,12 +69,10 @@ function BodyModel({
   side,
   activeMuscles,
   glowMuscles,
-  colorHex,
 }: {
   side: 'front' | 'back';
   activeMuscles: string[];
   glowMuscles: string[];
-  colorHex: string;
 }) {
   const data = (side === 'front' ? FRONT_DATA : BACK_DATA) as MuscleGroup[];
   const vb = side === 'front' ? '0 0 724 1448' : '724 0 724 1448';
@@ -80,7 +81,7 @@ function BodyModel({
     <svg viewBox={vb} className="h-full w-full" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <defs>
         <filter id={`glow-${side}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="5" result="blur" />
+          <feGaussianBlur stdDeviation="6.5" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
@@ -96,14 +97,14 @@ function BodyModel({
           let stroke = '#b7afa6';
 
           if (isBody) {
-            fill = '#d8d1ca';
-            stroke = '#c0b8af';
+            fill = '#d4ccc3';
+            stroke = '#b8afa6';
           } else if (isGlow) {
-            fill = colorHex;
-            stroke = colorHex;
+            fill = FIGURE_GREEN;
+            stroke = '#16a34a';
           } else if (isActive) {
-            fill = `${colorHex}a6`;
-            stroke = colorHex;
+            fill = FIGURE_GREEN_SOFT;
+            stroke = FIGURE_GREEN;
           }
 
           return (
@@ -127,25 +128,23 @@ function BodyModel({
 export function AnatomicalFigure({
   sessionId,
   exerciseId,
-  colorHex,
 }: {
   sessionId: SessionId;
   exerciseId?: string;
-  colorHex: string;
 }) {
   const config = (exerciseId ? EXERCISE_FIGURE[exerciseId as ExerciseId] : undefined) ?? SESSION_FIGURE[sessionId];
   const glowMuscles = config.glow ?? config.active;
 
   return (
     <div className="figure-panel rounded-[1.65rem] px-4 py-4">
-      <div className="mx-auto w-full max-w-[232px]">
-        <BodyModel side={config.side} activeMuscles={config.active} glowMuscles={glowMuscles} colorHex={colorHex} />
+      <div className="mx-auto w-full max-w-[246px]">
+        <BodyModel side={config.side} activeMuscles={config.active} glowMuscles={glowMuscles} />
       </div>
       <div className="mt-2 text-center">
         <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-400">
           {config.side === 'front' ? 'voorkant' : 'achterkant'}
         </div>
-        <div className="mt-1.5 text-xs font-medium text-stone-600">{config.label}</div>
+        <div className="mt-1 text-xs font-medium text-stone-700">{config.label}</div>
       </div>
     </div>
   );
