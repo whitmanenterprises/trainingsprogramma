@@ -104,7 +104,7 @@ function TimerPanel({
 }) {
   if (!exercise || !exercise.duration) {
     return (
-      <div className="session-card p-5">
+      <div className="session-card p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timer</p>
@@ -112,8 +112,8 @@ function TimerPanel({
           </div>
           <div className="text-2xl">⏱</div>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-stone-500">
-          Selecteer rechts een stretch of hold. De timer blijft links zichtbaar terwijl je door de sessie scrolt.
+        <p className="mt-2 text-sm leading-relaxed text-stone-500">
+          Kies rechts een oefening met tijd. Dan verschijnt hier direct de timer.
         </p>
       </div>
     );
@@ -126,7 +126,7 @@ function TimerPanel({
   const label = done ? '✓' : formatSeconds(secondsLeft || totalSeconds);
 
   return (
-    <div className="session-card p-5">
+    <div className="session-card p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Timer</p>
@@ -141,7 +141,7 @@ function TimerPanel({
         </button>
       </div>
 
-      <div className="mt-5 flex flex-col items-center gap-4 rounded-[1.75rem] bg-stone-50 px-5 py-6 text-center">
+      <div className="mt-4 flex flex-col items-center gap-4 rounded-[1.75rem] bg-stone-50 px-5 py-5 text-center">
         <div className="relative h-36 w-36">
           <svg className="timer-ring h-full w-full" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r={radius} fill="none" stroke="#e7e5e4" strokeWidth="8" />
@@ -464,12 +464,12 @@ export default function HomePage() {
           <div className="session-shell">
             <aside className="session-sidebar-stick">
               <div className="session-sidebar-stack">
-                <div className="session-card p-5">
+                <div className="session-card p-4">
                   <button onClick={() => setView('home')} className="text-sm text-stone-400 transition hover:text-stone-700">
                     ← Terug
                   </button>
 
-                  <div className="mt-4 flex items-start gap-4">
+                  <div className="mt-3 flex items-start gap-4">
                     <span className="text-4xl font-black leading-none" style={{ color: currentSession.colorHex }}>
                       {currentSession.id.toUpperCase()}
                     </span>
@@ -479,7 +479,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="mt-4 grid grid-cols-3 gap-2.5">
                     <div className="rounded-2xl bg-stone-50 p-3">
                       <div className="text-lg font-bold text-stone-900">{totalDone}</div>
                       <div className="mt-1 text-xs text-stone-500">Klaar</div>
@@ -494,11 +494,56 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-200">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{ width: `${progress * 100}%`, backgroundColor: currentSession.colorHex }}
                     />
+                  </div>
+                </div>
+
+                <div className="session-card p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Focus</p>
+                      <h2 className="mt-1 text-lg font-semibold text-stone-900">Sessie-overzicht</h2>
+                    </div>
+                    {nextOpenExercise && (
+                      <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-500">
+                        Volgende: {nextOpenIndex + 1}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[0.95fr_1.05fr] lg:grid-cols-1">
+                    <div className="session-figure">
+                      <AnatomicalFigure
+                        sessionId={currentSession.id}
+                        exerciseId={selectedExercise.id}
+                        colorHex={currentSession.colorHex}
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="rounded-2xl bg-stone-50 p-3.5">
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Nu geselecteerd</div>
+                        <div className="mt-2 font-medium text-stone-900">{selectedExercise.name}</div>
+                        <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(selectedExercise)}</div>
+                      </div>
+
+                      {nextOpenExercise ? (
+                        <div className="rounded-2xl bg-stone-50 p-3.5">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Volgende open</div>
+                          <div className="mt-2 font-medium text-stone-900">{nextOpenExercise.name}</div>
+                          <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(nextOpenExercise)}</div>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl bg-green-50 p-3.5 text-green-800">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em]">Klaar</div>
+                          <div className="mt-2 text-sm font-medium">Alles is afgevinkt. Je kunt de sessie opslaan.</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -516,47 +561,6 @@ export default function HomePage() {
                   onReset={resetTimer}
                   onFocus={focusTimerExercise}
                 />
-
-                <div className="session-card p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Focus</p>
-                      <h2 className="mt-1 text-lg font-semibold text-stone-900">Sessie-overzicht</h2>
-                    </div>
-                    {nextOpenExercise && (
-                      <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-500">
-                        Volgende: {nextOpenIndex + 1}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 grid gap-4 sm:grid-cols-[0.95fr_1.05fr] lg:grid-cols-1">
-                    <div className="session-figure">
-                      <AnatomicalFigure sessionId={currentSession.id} colorHex={currentSession.colorHex} />
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="rounded-2xl bg-stone-50 p-4">
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Nu geselecteerd</div>
-                        <div className="mt-2 font-medium text-stone-900">{selectedExercise.name}</div>
-                        <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(selectedExercise)}</div>
-                      </div>
-
-                      {nextOpenExercise ? (
-                        <div className="rounded-2xl bg-stone-50 p-4">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Volgende open</div>
-                          <div className="mt-2 font-medium text-stone-900">{nextOpenExercise.name}</div>
-                          <div className="mt-1 text-sm text-stone-500">{getExerciseMeta(nextOpenExercise)}</div>
-                        </div>
-                      ) : (
-                        <div className="rounded-2xl bg-green-50 p-4 text-green-800">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em]">Klaar</div>
-                          <div className="mt-2 text-sm font-medium">Alles is afgevinkt. Je kunt de sessie opslaan.</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
                 <div className="session-card p-5">
                   <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
