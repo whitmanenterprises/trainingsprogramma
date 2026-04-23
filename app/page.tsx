@@ -48,6 +48,10 @@ function getCurrentWeekSession(): 'a' | 'b' | 'c' {
   return sessionOrder[cycle][idx];
 }
 
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getInitialRoute(): { view: 'home' | 'session' | 'history'; session: 'a' | 'b' | 'c' } {
   if (typeof window === 'undefined') {
     return { view: 'session' as const, session: 'a' as const };
@@ -55,8 +59,13 @@ function getInitialRoute(): { view: 'home' | 'session' | 'history'; session: 'a'
 
   const params = new URLSearchParams(window.location.search);
   const defaultSession = getCurrentWeekSession();
+  const todayKey = getTodayKey();
   const sessionParam = params.get('session');
-  const session = sessionParam === 'a' || sessionParam === 'b' || sessionParam === 'c' ? sessionParam : defaultSession;
+  const sessionDateParam = params.get('sessionDate');
+  const session =
+    sessionDateParam === todayKey && (sessionParam === 'a' || sessionParam === 'b' || sessionParam === 'c')
+      ? sessionParam
+      : defaultSession;
   const viewParam = params.get('view');
   const view = viewParam === 'home' || viewParam === 'history' || viewParam === 'session' ? viewParam : 'session';
 
@@ -248,7 +257,7 @@ export default function HomePage() {
     return () => window.clearInterval(id);
   }, [timerRunning, timerExerciseIndex]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getTodayKey();
   const currentSession = sessions.find((session) => session.id === activeSession) ?? sessions[0];
   const selectedExercise = currentSession.exercises[exerciseIndex] ?? currentSession.exercises[0];
   const totalDone = completed.size;
@@ -266,9 +275,10 @@ export default function HomePage() {
     const params = new URLSearchParams(window.location.search);
     params.set('view', view);
     params.set('session', activeSession);
+    params.set('sessionDate', todayStr);
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState({}, '', nextUrl);
-  }, [view, activeSession]);
+  }, [view, activeSession, todayStr]);
 
   const openSession = (sessionId: 'a' | 'b' | 'c') => {
     const stored = loadRecords();
