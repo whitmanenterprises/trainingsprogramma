@@ -1,11 +1,68 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { sessions } from './data';
+import { sessions as localSessions } from './data';
 import { AnatomicalFigure } from './anatomical-figure';
+import { supabaseClient } from './lib/supabase';
 import { DayRecord, Exercise, Session } from './types';
 
 const STORAGE_KEY = 'trainingsprogramma-records';
+
+type RemoteSessionRow = {
+  id: string;
+  name: string;
+  color: string;
+  color_hex: string;
+  bg_light: string;
+  focus: string;
+  order_index: number;
+};
+
+type RemoteExerciseRow = {
+  id: string;
+  session_id: string;
+  order_index: number;
+  name: string;
+  sets: string | number | null;
+  reps: string | null;
+  duration: string | null;
+  muscles: string | null;
+  description: string;
+  tip: string;
+  common_mistake: string;
+  equipment: string;
+  source: string | null;
+};
+
+function mapRemoteSessions(sessionRows: RemoteSessionRow[], exerciseRows: RemoteExerciseRow[]): Session[] {
+  return sessionRows
+    .filter((row): row is RemoteSessionRow & { id: 'a' | 'b' | 'c' } => row.id === 'a' || row.id === 'b' || row.id === 'c')
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      color: row.color,
+      colorHex: row.color_hex,
+      bgLight: row.bg_light,
+      focus: row.focus,
+      exercises: exerciseRows
+        .filter((exercise) => exercise.session_id === row.id)
+        .sort((left, right) => left.order_index - right.order_index)
+        .map((exercise) => ({
+          id: exercise.id,
+          name: exercise.name,
+          sets: exercise.sets == null ? '' : String(exercise.sets),
+          reps: exercise.reps ?? undefined,
+          duration: exercise.duration ?? undefined,
+          muscles: exercise.muscles ?? '',
+          description: exercise.description,
+          tip: exercise.tip,
+          commonMistake: exercise.common_mistake,
+          equipment: exercise.equipment,
+          source: exercise.source ?? undefined,
+        })),
+    }))
+    .filter((session) => session.exercises.length > 0);
+}
 
 function loadRecords(): DayRecord[] {
   if (typeof window === 'undefined') return [];
@@ -214,6 +271,7 @@ export default function HomePage() {
   const initialRoute = getInitialRoute();
   const [view, setView] = useState<'home' | 'session' | 'history'>(initialRoute.view);
   const [activeSession, setActiveSession] = useState<'a' | 'b' | 'c'>(initialRoute.session);
+  const [sessionTemplates, setSessionTemplates] = useState<Session[]>(localSessions);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [expandedExercise, setExpandedExercise] = useState<number | null>(0);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
@@ -231,6 +289,46 @@ export default function HomePage() {
     });
 
     return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSessionTemplates() {
+      const [sessionsResult, exercisesResult] = await Promise.all([
+        supabaseClient
+          .from('training_sessions')
+          .select('id, name, color, color_hex, bg_light, focus, order_index')
+          .eq('active', true)
+          .order('order_index'),
+        supabaseClient
+          .from('training_exercises')
+          .select('id, session_id, order_index, name, sets, reps, duration, muscles, description, tip, common_mistake, equipment, source')
+          .eq('active', true)
+          .order('session_id')
+          .order('order_index'),
+      ]);
+
+      if (sessionsResult.error || exercisesResult.error) {
+        console.warn('Using local training data fallback', sessionsResult.error ?? exercisesResult.error);
+        return;
+      }
+
+      const mapped = mapRemoteSessions(
+        (sessionsResult.data ?? []) as RemoteSessionRow[],
+        (exercisesResult.data ?? []) as RemoteExerciseRow[]
+      );
+
+      if (!cancelled && mapped.length > 0) {
+        setSessionTemplates(mapped);
+      }
+    }
+
+    loadSessionTemplates();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -258,7 +356,7 @@ export default function HomePage() {
   }, [timerRunning, timerExerciseIndex]);
 
   const todayStr = getTodayKey();
-  const currentSession = sessions.find((session) => session.id === activeSession) ?? sessions[0];
+  const currentSession = sessionTemplates.find((session) => session.id === activeSession) ?? sessionTemplates[0];
   const selectedExercise = currentSession.exercises[exerciseIndex] ?? currentSession.exercises[0];
   const totalDone = completed.size;
   const progress = totalDone / currentSession.exercises.length;
@@ -382,7 +480,7 @@ export default function HomePage() {
   };
 
   if (view === 'home') {
-    const recommendedSession = sessions.find((session) => session.id === getCurrentWeekSession()) ?? sessions[0];
+    const recommendedSession = sessionTemplates.find((session) => session.id === getCurrentWeekSession()) ?? sessionTemplates[0];
     const streak = records.filter((record) => {
       const day = new Date(record.date);
       const now = new Date();
@@ -441,7 +539,7 @@ export default function HomePage() {
           <div className="space-y-4">
             <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Alle sessies</h2>
             <div className="grid gap-4 md:grid-cols-3">
-              {sessions.map((session) => (
+              {sessionTemplates.map((session) => (
                 <button
                   key={session.id}
                   onClick={() => openSession(session.id)}
@@ -767,7 +865,7 @@ export default function HomePage() {
             {[...records]
               .sort((a, b) => b.date.localeCompare(a.date))
               .map((record, index) => {
-                const session = sessions.find((item) => item.id === record.sessionId) ?? sessions[0];
+                const session = sessionTemplates.find((item) => item.id === record.sessionId) ?? sessionTemplates[0];
                 const date = new Date(record.date);
                 return (
                   <div
@@ -799,7 +897,7 @@ export default function HomePage() {
         <div className="mt-8">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Sessies per type</h2>
           <div className="grid grid-cols-3 gap-3">
-            {sessions.map((session) => {
+            {sessionTemplates.map((session) => {
               const count = records.filter((record) => record.sessionId === session.id).length;
               return (
                 <div
