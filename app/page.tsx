@@ -7,6 +7,9 @@ import { supabaseClient } from './lib/supabase';
 import { DayRecord, Exercise, Session } from './types';
 
 const STORAGE_KEY = 'trainingsprogramma-records';
+const AUTH_STORAGE_KEY = 'trainingsprogramma-auth';
+const ALLOWED_EMAILS = new Set(['mail@mingusvogel.com', 'mingusvogel@gmail.com']);
+const APP_PASSWORD = 'oefenen';
 
 type RemoteSessionRow = {
   id: string;
@@ -127,6 +130,68 @@ function getInitialRoute(): { view: 'home' | 'session' | 'history'; session: 'a'
   const view = viewParam === 'home' || viewParam === 'history' || viewParam === 'session' ? viewParam : 'session';
 
   return { view, session };
+}
+
+function AccessGate({ onUnlock }: { onUnlock: () => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!ALLOWED_EMAILS.has(normalizedEmail) || password !== APP_PASSWORD) {
+      setError('E-mail of wachtwoord klopt niet.');
+      return;
+    }
+
+    window.localStorage.setItem(AUTH_STORAGE_KEY, 'ok');
+    onUnlock();
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4 py-8">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Trainingsprogramma</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-stone-900">Inloggen</h1>
+        </div>
+
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <label className="block text-xs font-semibold text-stone-500">
+            E-mail
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              required
+              className="mt-2 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-green-500"
+            />
+          </label>
+
+          <label className="mt-4 block text-xs font-semibold text-stone-500">
+            Wachtwoord
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              required
+              className="mt-2 w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-green-500"
+            />
+          </label>
+
+          {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+
+          <button type="submit" className="mt-5 w-full rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-600">
+            Open trainingsprogramma
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function parseDurationToSeconds(duration?: string) {
@@ -267,7 +332,7 @@ function ExerciseTimer({
   );
 }
 
-export default function HomePage() {
+function TrainingApp() {
   const initialRoute = getInitialRoute();
   const [view, setView] = useState<'home' | 'session' | 'history'>(initialRoute.view);
   const [activeSession, setActiveSession] = useState<'a' | 'b' | 'c'>(initialRoute.session);
@@ -926,4 +991,16 @@ export default function HomePage() {
       </div>
     </div>
   );
+}
+
+export default function HomePage() {
+  const [authorized, setAuthorized] = useState(
+    () => typeof window !== 'undefined' && window.localStorage.getItem(AUTH_STORAGE_KEY) === 'ok'
+  );
+
+  if (!authorized) {
+    return <AccessGate onUnlock={() => setAuthorized(true)} />;
+  }
+
+  return <TrainingApp />;
 }
