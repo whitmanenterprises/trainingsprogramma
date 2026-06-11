@@ -89,6 +89,27 @@ function saveRecord(record: DayRecord) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
+function logWorkoutToSupabase(record: DayRecord, session: Session, completed: Set<number>) {
+  const completedExercises = session.exercises
+    .map((exercise, index) => ({ id: exercise.id, name: exercise.name, index }))
+    .filter((_, index) => completed.has(index));
+
+  window
+    .fetch('/api/workouts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: record.date,
+        sessionId: record.sessionId,
+        sessionName: session.name,
+        totalExercises: record.total,
+        completedExercises,
+        notes: record.notes,
+      }),
+    })
+    .catch((error) => console.warn('Could not log workout to Supabase', error));
+}
+
 function deleteRecord(date: string, sessionId: 'a' | 'b' | 'c') {
   const records = loadRecords().filter((record) => !(record.date === date && record.sessionId === sessionId));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
@@ -486,6 +507,7 @@ function TrainingApp() {
     };
 
     saveRecord(record);
+    logWorkoutToSupabase(record, currentSession, nextCompleted);
     setRecords(loadRecords());
   };
 
