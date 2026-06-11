@@ -7,7 +7,7 @@ export const sessions: Session[] = [
     color: 'Groen',
     colorHex: '#22c55e',
     bgLight: 'bg-green-50',
-    focus: 'Quadriceps + heupabductoren versterken = minder belasting op kniepees',
+    focus: 'Quadriceps + heupabductoren + excentrische controle voor bergaf lopen',
     exercises: [
       {
         id: 'a1',
@@ -69,12 +69,12 @@ export const sessions: Session[] = [
       {
         id: 'a6',
         name: 'Wall Sit',
-        sets: '2',
-        duration: '30 sec (of max)',
+        sets: '4',
+        duration: '30-45 sec',
         muscles: 'Quads + Billen',
-        description: 'Rug tegen muur. Zak tot knieën 90° (bovenbenen parallel). Houd vol. Duw rug plat tegen de muur.',
-        tip: 'Beginnen met 15 sec is prima. Bouw op. Isometrisch = geen beweging, puur kracht opbouwen. Heel veilig voor knieën.',
-        commonMistake: 'Knieën niet voorbij je tenen laten komen. Rug plat. Niet te diep als het pijn doet.',
+        description: 'Rug tegen muur. Zak tot een hoek die pijnvrij voelt. Houd vast zonder bewegen. Duw rug plat tegen de muur.',
+        tip: 'Isometrisch werk kan de knie rustig laten voelen. Begin met 20-30 sec als 45 sec te veel is.',
+        commonMistake: 'Niet te diep zakken als dat kniepijn geeft. Knieën volgen je tenen, rug blijft plat.',
         equipment: 'Een muur'
       },
       {
@@ -88,6 +88,54 @@ export const sessions: Session[] = [
         tip: 'Adem uit bij omhoog duwen. Focus op billen, niet op je rug.',
         commonMistake: 'Niet te hoog duwen (geen holle rug). Billen actief gebruiken, niet je rug.',
         equipment: 'Matje'
+      },
+      {
+        id: 'a8',
+        name: 'Step-Downs / Heel Taps',
+        sets: '3',
+        reps: '6-10x per been',
+        muscles: 'Quadriceps + Kniecontrole',
+        source: 'Bergaf-blok',
+        description: 'Sta op een lage step of traptrede. Het trainende been blijft op de verhoging. Zak in 3 seconden omlaag tot je andere hak net de vloer tikt. Kom rustig terug omhoog.',
+        tip: 'Dit is de meest specifieke oefening voor bergaf lopen: je traint het remmen. Begin met een lage verhoging.',
+        commonMistake: 'Knie niet naar binnen laten vallen. Knie blijft boven je tweede/derde teen. Niet hoger beginnen dan je controle aankan.',
+        equipment: 'Lage step/traptrede'
+      },
+      {
+        id: 'a9',
+        name: 'Supported Split Squat',
+        sets: '3',
+        reps: '6-8x per kant',
+        muscles: 'Quads + Billen + Balans',
+        source: 'Bergaf-blok',
+        description: 'Sta in split-stance met hand aan muur of stoel. Zak in 3 seconden omlaag binnen een pijnvrije range. Duw rustig terug omhoog.',
+        tip: 'Zie dit als gecontroleerd sterker worden, niet als diep lunges doen. Klein bereik is prima zolang de knie stabiel blijft.',
+        commonMistake: 'Niet doorzakken of snelheid gebruiken. Voorste knie volgt je tenen en blijft rustig.',
+        equipment: 'Muur of stoel'
+      },
+      {
+        id: 'a10',
+        name: 'Lateral Band Walk',
+        sets: '3',
+        reps: '12-20 stappen',
+        muscles: 'Heupabductoren',
+        source: 'Bergaf-blok',
+        description: 'Band boven je knieën of rond je enkels. Kleine squat, voeten parallel. Stap zijwaarts met spanning op de band en houd je knieën naar buiten gericht.',
+        tip: 'Heupcontrole voorkomt dat je knie naar binnen zakt bij lopen, trappen en afdalen.',
+        commonMistake: 'Niet met je romp zwabberen of je voeten naar buiten draaien. Kleine, nette stappen.',
+        equipment: 'Rekband'
+      },
+      {
+        id: 'a11',
+        name: 'Slow Calf Raises',
+        sets: '3',
+        reps: '10-15x',
+        muscles: 'Kuiten + Enkelcontrole',
+        source: 'Bergaf-blok',
+        description: 'Sta rechtop bij muur of stoel. Kom omhoog op je tenen, pauzeer kort, zak in 3 seconden gecontroleerd terug.',
+        tip: 'Je kuit helpt met afremmen bij afdalen. Later kun je dit op één been doen.',
+        commonMistake: 'Niet terug laten vallen op je hakken. Houd de beweging langzaam en symmetrisch.',
+        equipment: 'Muur of stoel'
       }
     ]
   },
