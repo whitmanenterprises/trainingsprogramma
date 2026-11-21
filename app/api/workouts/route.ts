@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAllowedUser } from '../../lib/server-auth';
 
 type CompletedExercise = {
   id: string;
@@ -51,6 +52,11 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAllowedUser(request);
+  if ('error' in auth) {
+    return jsonError(auth.error, auth.status);
+  }
+
   let payload: unknown;
 
   try {
@@ -107,6 +113,7 @@ export async function POST(request: Request) {
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify([
         {
+          user_id: auth.user.id,
           completed_at: `${payload.date}T12:00:00+00:00`,
           exercises_completed: logEntry,
           total_exercises: payload.totalExercises,

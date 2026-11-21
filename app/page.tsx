@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { sessions as localSessions } from './data';
 import { AnatomicalFigure } from './anatomical-figure';
-import { supabaseClient } from './lib/supabase';
+import type { Session as SupabaseSession } from '@supabase/supabase-js';
+import { authHeader, supabaseClient } from './lib/supabase';
 import { DayRecord, Exercise, Session } from './types';
 
 const STORAGE_KEY = 'trainingsprogramma-records';
-const AUTH_STORAGE_KEY = 'trainingsprogramma-auth';
-const ALLOWED_EMAILS = new Set(['mail@mingusvogel.com', 'mingusvogel@gmail.com']);
-const APP_PASSWORD = 'oefenen';
+// Old client-side gate flag; it no longer grants access, so it is cleared on load.
+const LEGACY_AUTH_KEY = 'trainingsprogramma-auth';
 
 type RemoteSessionRow = {
   id: string;
@@ -94,10 +94,10 @@ function logWorkoutToSupabase(record: DayRecord, session: Session, completed: Se
     .map((exercise, index) => ({ id: exercise.id, name: exercise.name, index }))
     .filter((_, index) => completed.has(index));
 
-  window
-    .fetch('/api/workouts', {
+  authHeader()
+    .then((headers) => window.fetch('/api/workouts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({
         date: record.date,
         sessionId: record.sessionId,
@@ -106,6 +106,9 @@ function logWorkoutToSupabase(record: DayRecord, session: Session, completed: Se
         completedExercises,
         notes: record.notes,
       }),
+    }))
+    .then((response) => {
+      if (!response.ok) console.warn('Could not log workout to Supabase', response.status);
     })
     .catch((error) => console.warn('Could not log workout to Supabase', error));
 }
@@ -153,22 +156,24 @@ function getInitialRoute(): { view: 'home' | 'session' | 'history'; session: 'a'
   return { view, session };
 }
 
-function AccessGate({ onUnlock }: { onUnlock: () => void }) {
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!ALLOWED_EMAILS.has(normalizedEmail) || password !== APP_PASSWORD) {
-      setError('E-mail of wachtwoord klopt niet.');
-      return;
+    setBusy(true);
+    setError('');
+    const { error: signInError } = await supabaseClient.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    setBusy(false);
+    if (signInError) {
+      setError(signInError.status === 400 ? 'E-mail of wachtwoord klopt niet.' : `Inloggen mislukt: ${signInError.message}`);
     }
-
-    window.localStorage.setItem(AUTH_STORAGE_KEY, 'ok');
-    onUnlock();
   }
 
   return (
@@ -206,8 +211,12 @@ function AccessGate({ onUnlock }: { onUnlock: () => void }) {
 
           {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
 
-          <button type="submit" className="mt-5 w-full rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-600">
-            Open trainingsprogramma
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-5 w-full rounded-xl bg-green-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-600 disabled:cursor-wait disabled:opacity-60"
+          >
+            {busy ? 'Bezig…' : 'Open trainingsprogramma'}
           </button>
         </form>
       </div>
@@ -654,6 +663,15 @@ function TrainingApp() {
           >
             📊 Geschiedenis bekijken — {records.length} sessies geregistreerd
           </button>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => supabaseClient.auth.signOut()}
+              className="text-xs text-stone-400 underline-offset-2 transition hover:text-stone-600 hover:underline"
+            >
+              Uitloggen
+            </button>
+          </div>
         </div>
 
         <div className="bottom-nav fixed bottom-0 left-0 right-0 border-t border-stone-200 bg-white/90 backdrop-blur">
@@ -1015,14 +1033,21 @@ function TrainingApp() {
   );
 }
 
+// Renders the app only with a real Supabase session; data access itself is enforced by RLS.
 export default function HomePage() {
-  const [authorized, setAuthorized] = useState(
-    () => typeof window !== 'undefined' && window.localStorage.getItem(AUTH_STORAGE_KEY) === 'ok'
-  );
+  const [session, setSession] = useState<SupabaseSession | null | undefined>(undefined);
 
-  if (!authorized) {
-    return <AccessGate onUnlock={() => setAuthorized(true)} />;
-  }
+  useEffect(() => {
+    window.localStorage.removeItem(LEGACY_AUTH_KEY);
+    supabaseClient.auth.getSession().then(({ data }) => setSession(data.session));
+    const {
+      data: { subscription },
+    } = supabaseClient.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) return <div className="min-h-screen bg-stone-50" aria-busy="true" />;
+  if (!session) return <LoginForm />;
 
   return <TrainingApp />;
 }

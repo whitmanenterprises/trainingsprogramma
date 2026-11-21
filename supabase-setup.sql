@@ -56,21 +56,8 @@ ALTER TABLE training_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE training_exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Public can read active training sessions" ON training_sessions;
-CREATE POLICY "Public can read active training sessions" ON training_sessions
-  FOR SELECT USING (active = true);
-
-DROP POLICY IF EXISTS "Public can read active training exercises" ON training_exercises;
-CREATE POLICY "Public can read active training exercises" ON training_exercises
-  FOR SELECT USING (active = true);
-
-DROP POLICY IF EXISTS "Users can read own workout sessions" ON workout_sessions;
-CREATE POLICY "Users can read own workout sessions" ON workout_sessions
-  FOR SELECT USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can insert own workout sessions" ON workout_sessions;
-CREATE POLICY "Users can insert own workout sessions" ON workout_sessions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- Policies: zie supabase_migrations/2026-11-21_auth_rls.sql (alleen ingelogde eigenaar, geen anon-toegang).
+-- Draai die migratie na deze setup; hier staan bewust geen publieke policies meer.
 
 INSERT INTO training_sessions (id, order_index, name, color, color_hex, bg_light, focus, active)
 VALUES
